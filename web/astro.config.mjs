@@ -3,10 +3,8 @@ import tailwind from "@astrojs/tailwind";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
-  site: process.env.PUBLIC_SITE_URL || "https://privdark-web.ssantyxs.workers.dev",
+  site: process.env.PUBLIC_SITE_URL || "https://privdark.pages.dev",
   base: "/",
-  output: "server",
-  adapter: cloudflare(),
   integrations: [tailwind({ applyBaseStyles: false })],
   vite: {
     resolve: {
