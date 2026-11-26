@@ -1,5 +1,5 @@
 # PrivDark API proxy. Deploy with: pnpm wrangler deploy
-name = "privdark-api"
+name = "privdark"
 main = "src/index.ts"
 compatibility_date = "2025-05-01"
 compatibility_flags = ["nodejs_compat"]
