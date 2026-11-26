@@ -1,0 +1,29 @@
+---
+const baseUrl = import.meta.env.BASE_URL;
+---
+
+<header class="site-header">
+  <div class="mx-auto max-w-6xl px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
+    <a href={baseUrl} class="brand-lockup" aria-label="PrivDark, inicio">
+      <svg viewBox="0 0 40 40" class="brand-mark" aria-hidden="true">
+        <defs>
+          <linearGradient id="privdark-mark" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#e7c5ff" />
+            <stop offset="0.52" stop-color="#a76bff" />
+            <stop offset="1" stop-color="#ed70d7" />
+          </linearGradient>
+        </defs>
+        <path d="M20 3.5 34 11.5v17L20 36.5 6 28.5v-17L20 3.5Z" fill="none" stroke="url(#privdark-mark)" stroke-width="1.7" />
+        <path d="M24.8 10.7a10.1 10.1 0 1 0 4.5 18.6A11.2 11.2 0 0 1 24.8 10.7Z" fill="url(#privdark-mark)" />
+        <circle cx="25.9" cy="19.5" r="1.35" fill="#100b18" />
+      </svg>
+      <span class="brand-wordmark">PRIV<span>DARK</span></span>
+      <span class="brand-pill">AI STUDIO</span>
+    </a>
+
+    <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
+      <span class="status-indicator" aria-hidden="true"></span>
+      <span>Estudio creativo</span>
+    </div>
+  </div>
+</header>
