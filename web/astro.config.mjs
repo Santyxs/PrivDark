@@ -3,7 +3,7 @@ import tailwind from "@astrojs/tailwind";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
-  site: process.env.PUBLIC_SITE_URL || "https://privdark.pages.dev", 
+  site: process.env.PUBLIC_SITE_URL || "https://privdark.pages.dev",
   base: "/",
   integrations: [tailwind({ applyBaseStyles: false })],
   vite: {
