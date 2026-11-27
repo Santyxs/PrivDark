@@ -10,367 +10,198 @@ const baseUrl = import.meta.env.BASE_URL;
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#08070d" />
     <title>PrivDark</title>
     <link rel="icon" type="image/svg+xml" href={`${baseUrl}favicon.svg`} />
   </head>
   <body>
     <header class="site-header">
       <div class="wrap header-inner">
-        <a href={baseUrl} class="brand-lockup">
+        <a href={baseUrl} class="brand-lockup" aria-label="PrivDark, inicio">
           <svg viewBox="0 0 40 40" class="brand-mark" aria-hidden="true">
             <defs>
-              <linearGradient id="m" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#e7c5ff" /><stop offset="0.52" stop-color="#a76bff" /><stop offset="1" stop-color="#ed70d7" />
+              <linearGradient id="brand-gradient" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#e7c5ff" />
+                <stop offset="0.52" stop-color="#a76bff" />
+                <stop offset="1" stop-color="#ed70d7" />
               </linearGradient>
             </defs>
-            <path d="M20 3.5 34 11.5v17L20 36.5 6 28.5v-17L20 3.5Z" fill="none" stroke="url(#m)" stroke-width="1.7" />
-            <path d="M24.8 10.7a10.1 10.1 0 1 0 4.5 18.6A11.2 11.2 0 0 1 24.8 10.7Z" fill="url(#m)" />
+            <path d="M20 3.5 34 11.5v17L20 36.5 6 28.5v-17L20 3.5Z" fill="none" stroke="url(#brand-gradient)" stroke-width="1.7" />
+            <path d="M24.8 10.7a10.1 10.1 0 1 0 4.5 18.6A11.2 11.2 0 0 1 24.8 10.7Z" fill="url(#brand-gradient)" />
             <circle cx="25.9" cy="19.5" r="1.35" fill="#100b18" />
           </svg>
           <span class="brand-wordmark">PRIV<span>DARK</span></span>
         </a>
+        <div class="header-status" aria-label="Espacio privado">
+          <span class="header-status-dot" aria-hidden="true"></span>
+          <span>ESPACIO PRIVADO</span>
+        </div>
       </div>
     </header>
 
     <main class="wrap studio">
+      <section class="hero" aria-labelledby="studio-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span> ESTUDIO CREATIVO PRIVADO</p>
+          <h1 id="studio-title">Tus imágenes, <span>en movimiento.</span></h1>
+          <p class="hero-description">Dale vida a una fotografía con movimiento, cámara y expresión. Tu próximo vídeo empieza aquí.</p>
+        </div>
+        <div class="hero-note">
+          <span class="hero-note-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M7.5 10V7.5a4.5 4.5 0 0 1 9 0V10M6.5 10h11A1.5 1.5 0 0 1 19 11.5v7A1.5 1.5 0 0 1 17.5 20h-11A1.5 1.5 0 0 1 5 18.5v-7A1.5 1.5 0 0 1 6.5 10Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </span>
+          <span><strong>Tu espacio, a tu ritmo</strong><small>Sin galería pública ni perfiles compartidos</small></span>
+        </div>
+      </section>
+
       <div class="studio-shell">
-        <div class="studio-card stack">
+        <section class="studio-card stack" aria-label="Controles de generación">
           <div class="section-heading">
-            <div class="section-number">01</div>
+            <div class="section-number" aria-hidden="true">01</div>
             <div><h2>Imagen</h2><p>PNG, JPG o WEBP · máx. 8 MB</p></div>
           </div>
 
           <label class="dropzone" data-dropzone>
-            <input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" data-file-input />
-            <div class="dropzone-empty" data-dropzone-empty>
-              <p class="title">Arrastra o pega una imagen</p>
-              <p class="browse">o elige un archivo</p>
-            </div>
-            <img data-dropzone-preview class="preview-img" alt="" />
+            <input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" data-file-input aria-label="Seleccionar imagen" />
+            <span class="dropzone-empty" data-dropzone-empty>
+              <span class="upload-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="title">Arrastra tu imagen aquí</span>
+              <span class="browse">o <strong>explora tus archivos</strong></span>
+              <span class="dropzone-formats">PNG <i></i> JPG <i></i> WEBP <i></i> MÁX. 8 MB</span>
+            </span>
+            <img data-dropzone-preview class="preview-img" alt="Vista previa de la imagen seleccionada" />
           </label>
 
           <div>
             <div class="section-heading compact">
-              <div class="section-number">02</div>
+              <div class="section-number" aria-hidden="true">02</div>
               <div><h2>Prompt</h2><p>Máx. 500 caracteres</p></div>
             </div>
-            <textarea rows="2" data-prompt class="prompt-field" placeholder="Movimiento, cámara, expresión..."></textarea>
-            <div class="prompt-meta"><span></span><span data-prompt-count>0 / 500</span></div>
+            <textarea rows="2" data-prompt class="prompt-field" placeholder="Movimiento, cámara, expresión..." aria-label="Describe el movimiento del vídeo"></textarea>
+            <div class="prompt-meta"><span data-prompt-count aria-live="polite">0 / 500</span></div>
           </div>
 
           <div class="params">
-            <div class="param">
-              <div class="param-label">
+            <div class="param-control">
+              <label class="param-label" for="duration-range">
                 <span>Duración</span>
                 <span class="param-value"><span data-duration-value>5.0</span> s</span>
-              </div>
-              <input type="range" min="1" max="10" step="0.1" value="5" data-duration class="steps-range" aria-label="Duración" />
+              </label>
+              <input id="duration-range" type="range" min="1" max="10" step="0.1" value="5" data-duration class="steps-range" />
             </div>
-            <div class="param">
-              <div class="param-label">
+            <div class="param-control">
+              <label class="param-label" for="steps-range">
                 <span>Pasos</span>
                 <span class="param-value" data-steps-value>3</span>
-              </div>
-              <input type="range" min="3" max="8" step="1" value="3" data-steps class="steps-range" aria-label="Pasos" />
+              </label>
+              <input id="steps-range" type="range" min="3" max="8" step="1" value="3" data-steps class="steps-range" />
             </div>
-            <p class="help-text">Más duración o pasos = más GPU y más tiempo de espera.</p>
+            <p class="help-text"><span aria-hidden="true">ⓘ</span> Más duración o pasos requieren más GPU y tiempo de espera.</p>
           </div>
 
           <div class="actions">
-            <button data-generate class="btn-primary" disabled>
-              <span class="pulse-dot" data-spinner></span>
+            <button type="button" data-generate class="btn-primary" disabled>
+              <span class="pulse-dot" data-spinner aria-hidden="true"></span>
               <span data-button-label>Generar</span>
             </button>
-            <p class="status-msg" data-status>Imagen + prompt para generar.</p>
+            <p class="status-msg" data-status role="status" aria-live="polite">Imagen + prompt para generar.</p>
           </div>
-        </div>
+        </section>
 
-        <div class="studio-card">
+        <section class="studio-card" aria-label="Resultado de vídeo">
           <div class="output-head">
             <div class="section-heading">
-              <div class="section-number">03</div>
-              <div><h2>Vídeo</h2><p>Resultado</p></div>
+              <div class="section-number" aria-hidden="true">03</div>
+              <div><h2>Tu creación</h2><p>Vista previa del resultado</p></div>
             </div>
+            <span class="output-state"><span></span> PREVISUALIZACIÓN</span>
           </div>
 
-          <div class="result-frame">
+          <div class="result-frame" aria-live="polite">
             <div data-result-empty class="result-empty">
-              <p class="title">Sin vídeo aún</p>
+              <div class="empty-art" aria-hidden="true">
+                <span class="empty-art-ring empty-art-ring-one"></span>
+                <span class="empty-art-ring empty-art-ring-two"></span>
+                <span class="empty-art-core">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="m9 6.75 9 5.25-9 5.25V6.75Z" fill="currentColor"/></svg>
+                </span>
+              </div>
+              <p class="title">Tu vídeo aparecerá aquí</p>
+              <p class="empty-description">Sube una imagen, describe el movimiento y deja que PrivDark haga el resto.</p>
             </div>
-            <div data-result-loading class="result-loading hide">
-              <div class="loading-orbit"><span></span><span></span><span></span></div>
+            <div data-result-loading class="result-loading hide" aria-label="Generando vídeo">
+              <div class="loading-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
               <p class="msg" data-loading-message>Generando...</p>
             </div>
-            <video data-result-video controls playsinline class="result-video hide" preload="metadata"></video>
+            <video data-result-video controls playsinline class="result-video hide" preload="metadata" aria-label="Vídeo generado"></video>
           </div>
 
           <div class="output-foot">
             <p data-output-meta>MP4 · 5.0 s</p>
-            <a data-download class="btn-ghost" href="#">Descargar MP4</a>
+            <a data-download class="btn-ghost" href="#" download="privdark.mp4">Descargar MP4</a>
           </div>
 
           <div data-history-wrap class="history-wrap">
-            <div class="history-heading"><span>Sesión</span></div>
-            <ul data-history class="history-list"></ul>
+            <div class="history-topline"><h3 class="history-heading">Generaciones recientes</h3><span>ESTA SESIÓN</span></div>
+            <ul data-history class="history-list" aria-label="Vídeos generados en esta sesión"></ul>
           </div>
-        </div>
+        </section>
       </div>
+      <footer class="studio-footer"><span>PRIVDARK STUDIO</span><span>Hecho para crear en privado.</span></footer>
     </main>
 
     <script>
       type Tone = "info" | "error" | "success";
       type ResultState = "empty" | "loading" | "ready";
 
-      const W = import.meta.env.PUBLIC_WORKER_URL as string | undefined;
-      if (!W) throw new Error("Falta PUBLIC_WORKER_URL en el build. Configura la URL del worker en Cloudflare Pages.");
-      const MAX = 8 << 20;
-      const PL = 500;
-      const HF = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
+      const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+      const MAX_PROMPT_LENGTH = 500;
+      const MAX_HISTORY_ITEMS = 6;
+      const HF_SPACE = new URL("https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space");
+      const rawWorkerUrl = (import.meta.env.PUBLIC_WORKER_URL as string | undefined)?.trim();
+      if (!rawWorkerUrl) {
+        throw new Error("Falta PUBLIC_WORKER_URL en el build. Configura la URL del Worker en Cloudflare Pages.");
+      }
+      const workerUrl = rawWorkerUrl.replace(/\/+$/, "");
+      const generateUrl = `${workerUrl}/generate`;
 
-      const q = <T extends Element>(s: string): T => {
-        const el = document.querySelector<T>(s);
-        if (!el) throw new Error(`Elemento no encontrado en la página: ${s}`);
-        return el;
-      };
-
-      const dz = q<HTMLLabelElement>("[data-dropzone]");
-      const fi = q<HTMLInputElement>("[data-file-input]");
-      const de = q<HTMLElement>("[data-dropzone-empty]");
-      const dp = q<HTMLImageElement>("[data-dropzone-preview]");
-      const pr = q<HTMLTextAreaElement>("[data-prompt]");
-      const pc = q<HTMLElement>("[data-prompt-count]");
-      const st = q<HTMLInputElement>("[data-steps]");
-      const sv = q<HTMLElement>("[data-steps-value]");
-      const dur = q<HTMLInputElement>("[data-duration]");
-      const dv = q<HTMLElement>("[data-duration-value]");
-      const outMeta = q<HTMLElement>("[data-output-meta]");
-      const btn = q<HTMLButtonElement>("[data-generate]");
-      const bl = q<HTMLElement>("[data-button-label]");
-      const sp = q<HTMLElement>("[data-spinner]");
-      const stt = q<HTMLElement>("[data-status]");
-      const re = q<HTMLElement>("[data-result-empty]");
-      const rl = q<HTMLElement>("[data-result-loading]");
-      const lm = q<HTMLElement>("[data-loading-message]");
-      const vid = q<HTMLVideoElement>("[data-result-video]");
-      const dl = q<HTMLAnchorElement>("[data-download]");
-      const hw = q<HTMLElement>("[data-history-wrap]");
-      const hl = q<HTMLUListElement>("[data-history]");
-
-      let file: File | null = null;
-      let busy = false;
-      let prev: string | null = null;
-
-      const status = (m: string, t: Tone = "info"): void => {
-        stt.textContent = m;
-        stt.className = "status-msg" + (t === "error" ? " error" : t === "success" ? " success" : "");
+      const q = <T extends Element>(selector: string): T => {
+        const element = document.querySelector<T>(selector);
+        if (!element) throw new Error(`Elemento no encontrado en la página: ${selector}`);
+        return element;
       };
 
-      const ready = (): void => {
-        btn.disabled = !(file && pr.value.trim() && !busy);
-      };
+      const dropzone = q<HTMLLabelElement>("[data-dropzone]");
+      const fileInput = q<HTMLInputElement>("[data-file-input]");
+      const dropzoneEmpty = q<HTMLElement>("[data-dropzone-empty]");
+      const preview = q<HTMLImageElement>("[data-dropzone-preview]");
+      const promptInput = q<HTMLTextAreaElement>("[data-prompt]");
+      const promptCount = q<HTMLElement>("[data-prompt-count]");
+      const stepsInput = q<HTMLInputElement>("[data-steps]");
+      const stepsValue = q<HTMLElement>("[data-steps-value]");
+      const durationInput = q<HTMLInputElement>("[data-duration]");
+      const durationValue = q<HTMLElement>("[data-duration-value]");
+      const outputMeta = q<HTMLElement>("[data-output-meta]");
+      const generateButton = q<HTMLButtonElement>("[data-generate]");
+      const buttonLabel = q<HTMLElement>("[data-button-label]");
+      const spinner = q<HTMLElement>("[data-spinner]");
+      const statusMessage = q<HTMLElement>("[data-status]");
+      const emptyResult = q<HTMLElement>("[data-result-empty]");
+      const loadingResult = q<HTMLElement>("[data-result-loading]");
+      const loadingMessage = q<HTMLElement>("[data-loading-message]");
+      const resultVideo = q<HTMLVideoElement>("[data-result-video]");
+      const downloadLink = q<HTMLAnchorElement>("[data-download]");
+      const historyWrap = q<HTMLElement>("[data-history-wrap]");
+      const historyList = q<HTMLUListElement>("[data-history]");
 
-      const show = (s: ResultState): void => {
-        re.classList.toggle("hide", s !== "empty");
-        rl.classList.toggle("hide", s !== "loading");
-        vid.classList.toggle("hide", s !== "ready");
-        dl.classList.toggle("show", s === "ready");
-      };
+      let selectedFile: File | null = null;
+      let previewUrl: string | null = null;
+      let currentDownloadUrl: string | null = null;
+      let isGenerating = false;
 
-      const accept = (f: File): void => {
-        const ok = /image\/(png|jpeg|webp)/i.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name);
-        if (!ok) return status("Formato no válido. Solo PNG, JPG o WEBP.", "error");
-        if (!f.size || f.size > MAX)
-          return status(
-            f.size ? "La imagen supera 8 MB. Elige una más ligera." : "El archivo está vacío. Elige otra imagen.",
-            "error",
-          );
-        file = f;
-        if (prev) URL.revokeObjectURL(prev);
-        prev = URL.createObjectURL(f);
-        dp.src = prev;
-        dp.classList.add("show");
-        de.classList.add("hide");
-        ready();
-        status("Imagen cargada. Ya puedes generar.", "success");
-      };
-
-      fi.onchange = () => {
-        const f = fi.files?.[0];
-        if (f) accept(f);
-      };
-      (["dragenter", "dragover"] as const).forEach((e) =>
-        dz.addEventListener(e, (ev) => {
-          ev.preventDefault();
-          dz.dataset.active = "true";
-        }),
-      );
-      (["dragleave", "drop"] as const).forEach((e) =>
-        dz.addEventListener(e, () => {
-          dz.dataset.active = "false";
-        }),
-      );
-      dz.ondrop = (e) => {
-        e.preventDefault();
-        const f = e.dataTransfer?.files?.[0];
-        if (f) accept(f);
-      };
-      window.addEventListener("paste", (e: ClipboardEvent) => {
-        const f = e.clipboardData?.files?.[0];
-        if (f) accept(f);
-      });
-      pr.maxLength = PL;
-      pr.oninput = () => {
-        pc.textContent = `${pr.value.length} / ${PL}`;
-        ready();
-      };
-      st.oninput = () => {
-        sv.textContent = st.value;
-      };
-      const fmtDur = (v: string | number): string => Number(v).toFixed(1);
-      dur.oninput = () => {
-        const d = fmtDur(dur.value);
-        dv.textContent = d;
-        outMeta.textContent = `MP4 · ${d} s`;
-      };
-
-      const videoUrl = (d: unknown): string | null => {
-        if (typeof d === "string")
-          return /^https?:/i.test(d) ? d : new URL(`/gradio_api/file=${d.replace(/^\//, "")}`, HF).href;
-        if (!d || typeof d !== "object") return null;
-        const rec = d as { url?: unknown; path?: unknown };
-        const c = typeof rec.url === "string" ? rec.url : rec.path;
-        if (typeof c !== "string" || !c) return null;
-        return /^https?:/i.test(c) ? c : new URL(`/gradio_api/file=${c.replace(/^\//, "")}`, HF).href;
-      };
-
-      const parseEvt = (raw: string): string | null => {
-        let ev = "message";
-        const lines: string[] = [];
-        for (const l of raw.split(/\r?\n/)) {
-          if (l.startsWith("event:")) ev = l.slice(6).trim();
-          else if (l.startsWith("data:")) lines.push(l.slice(5).trimStart());
-        }
-        if (!lines.length) return null;
-        const data = lines.join("\n");
-        if (ev === "error") {
-          try {
-            const p: unknown = JSON.parse(data);
-            const msg =
-              typeof p === "string"
-                ? p
-                : p && typeof p === "object" && "message" in p && typeof (p as { message: unknown }).message === "string"
-                  ? (p as { message: string }).message
-                  : data;
-            throw new Error(msg || "Error del modelo en Hugging Face. Revisa el prompt o reintenta.");
-          } catch (e) {
-            if (e instanceof Error && e.message !== data) throw e;
-            throw new Error(data || "Error del modelo en Hugging Face. Revisa el prompt o reintenta.");
-          }
-        }
-        if (ev !== "complete") return null;
-        const p: unknown = JSON.parse(data);
-        const u = videoUrl(Array.isArray(p) ? p[0] : null);
-        if (!u) throw new Error("La generación terminó sin devolver un vídeo. Reintenta o baja duración/pasos.");
-        return u;
-      };
-
-      const readSSE = async (body: ReadableStream<Uint8Array>): Promise<string> => {
-        const r = body.getReader();
-        const d = new TextDecoder();
-        let buf = "";
-        try {
-          while (true) {
-            const { value, done } = await r.read();
-            if (done) break;
-            buf += d.decode(value, { stream: true });
-            const parts = buf.split(/\r?\n\r?\n/);
-            buf = parts.pop() || "";
-            for (const c of parts) {
-              const u = parseEvt(c);
-              if (u) return u;
-            }
-          }
-          buf += d.decode();
-          if (buf.trim()) {
-            const u = parseEvt(buf);
-            if (u) return u;
-          }
-        } finally {
-          await r.cancel().catch(() => undefined);
-          r.releaseLock();
-        }
-        throw new Error("La conexión se cerró antes de recibir el vídeo (timeout o Space caído). Reintenta.");
-      };
-
-      const errMsg = async (res: Response): Promise<string> => {
-        try {
-          const j: unknown = await res.clone().json();
-          if (j && typeof j === "object" && "error" in j && typeof (j as { error: unknown }).error === "string")
-            return (j as { error: string }).error;
-        } catch {
-          /* ignore */
-        }
-        const body = (await res.text().catch(() => "")).trim();
-        return body || `El servidor respondió con error ${res.status} (${res.statusText || "sin detalle"}).`;
-      };
-
-      const setDownload = (url: string): void => {
-        dl.onclick = async (e) => {
-          e.preventDefault();
-          try {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`No se pudo descargar el MP4 (código ${res.status}).`);
-            const blob = await res.blob();
-            const obj = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = obj;
-            a.download = `privdark-${Date.now()}.mp4`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(obj);
-          } catch (err) {
-            status(
-              err instanceof Error
-                ? err.message
-                : "No se pudo descargar el vídeo. Se abrirá en una pestaña nueva.",
-              "error",
-            );
-            window.open(url, "_blank", "noopener,noreferrer");
-          }
-        };
-        dl.href = url;
-      };
-
-      const addHist = (url: string): void => {
-        hw.classList.add("show");
-        const li = document.createElement("li");
-        li.className = "history-item";
-        const v = document.createElement("video");
-        v.src = url;
-        v.muted = true;
-        v.loop = true;
-        v.playsInline = true;
-        v.preload = "metadata";
-        li.onmouseenter = () => {
-          void v.play().catch(() => undefined);
-        };
-        li.onmouseleave = () => {
-          v.pause();
-          v.currentTime = 0;
-        };
-        li.onclick = () => {
-          vid.pause();
-          vid.src = url;
-          vid.load();
-          setDownload(url);
-          show("ready");
-        };
-        li.appendChild(v);
-        hl.prepend(li);
-      };
-
-      const msgs = [
+      const loadingMessages = [
         "Subiendo imagen...",
         "Esperando GPU en Hugging Face...",
         "Cargando el modelo...",
@@ -379,52 +210,385 @@ const baseUrl = import.meta.env.BASE_URL;
         "Casi listo...",
       ];
 
-      btn.onclick = async () => {
-        const prompt = pr.value.trim();
-        if (!file || !prompt || busy) return;
-        busy = true;
-        sp.classList.add("show");
-        bl.textContent = "Generando...";
-        ready();
-        show("loading");
-        status("Enviando imagen y parámetros al worker...");
-        let i = 0;
-        lm.textContent = msgs[0]!;
-        const t = window.setInterval(() => {
-          i = Math.min(i + 1, msgs.length - 1);
-          lm.textContent = msgs[i]!;
-        }, 9000);
-        try {
-          const fd = new FormData();
-          fd.append("image", file, file.name);
-          fd.append(
-            "params",
-            JSON.stringify({ prompt, steps: Number(st.value), duration: Number(dur.value) }),
-          );
-          const res = await fetch(`${W.replace(/\/$/, "")}/generate`, { method: "POST", body: fd });
-          if (!res.ok || !res.body) throw new Error(await errMsg(res));
-          const url = await readSSE(res.body);
-          vid.pause();
-          vid.src = url;
-          vid.load();
-          setDownload(url);
-          show("ready");
-          status("Vídeo generado. Ya puedes reproducirlo o descargarlo.", "success");
-          addHist(url);
-        } catch (e: unknown) {
-          status(e instanceof Error ? e.message : `Error inesperado: ${String(e)}`, "error");
-          show("empty");
-        } finally {
-          clearInterval(t);
-          busy = false;
-          sp.classList.remove("show");
-          bl.textContent = "Generar";
-          ready();
-        }
-      };
+      function setStatus(message: string, tone: Tone = "info"): void {
+        statusMessage.textContent = message;
+        statusMessage.className = `status-msg${tone === "error" ? " error" : tone === "success" ? " success" : ""}`;
+      }
 
-      show("empty");
-      ready();
+      function updateGenerateButton(): void {
+        generateButton.disabled = !(selectedFile && promptInput.value.trim() && !isGenerating);
+      }
+
+      function setResultState(state: ResultState): void {
+        emptyResult.classList.toggle("hide", state !== "empty");
+        loadingResult.classList.toggle("hide", state !== "loading");
+        resultVideo.classList.toggle("hide", state !== "ready");
+        downloadLink.classList.toggle("show", state === "ready");
+      }
+
+      function clearSelectedImage(): void {
+        selectedFile = null;
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          previewUrl = null;
+        }
+        preview.removeAttribute("src");
+        preview.classList.remove("show");
+        dropzoneEmpty.classList.remove("hide");
+        updateGenerateButton();
+      }
+
+      function selectImage(file: File): void {
+        const supportedType = /^image\/(png|jpeg|webp)$/i.test(file.type);
+        const supportedName = /\.(png|jpe?g|webp)$/i.test(file.name);
+        if (!supportedType && !supportedName) {
+          clearSelectedImage();
+          setStatus("Formato no válido. Solo PNG, JPG o WEBP.", "error");
+          return;
+        }
+        if (file.size === 0 || file.size > MAX_IMAGE_BYTES) {
+          clearSelectedImage();
+          setStatus(
+            file.size ? "La imagen supera 8 MB. Elige una más ligera." : "El archivo está vacío. Elige otra imagen.",
+            "error",
+          );
+          return;
+        }
+
+        selectedFile = file;
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = URL.createObjectURL(file);
+        preview.src = previewUrl;
+        preview.classList.add("show");
+        dropzoneEmpty.classList.add("hide");
+        updateGenerateButton();
+        setStatus("Imagen cargada. Ya puedes generar.", "success");
+      }
+
+      function formatDuration(value: string): string {
+        return Number(value).toFixed(1);
+      }
+
+      function isRecord(value: unknown): value is Record<string, unknown> {
+        return typeof value === "object" && value !== null && !Array.isArray(value);
+      }
+
+      function toVideoUrl(value: unknown): string | null {
+        let candidate: unknown = value;
+        if (isRecord(value)) {
+          candidate = typeof value.url === "string" && value.url ? value.url : value.path;
+        }
+        if (typeof candidate !== "string" || !candidate.trim()) return null;
+
+        const path = candidate.trim();
+        if (/^https?:\/\//i.test(path)) {
+          try {
+            const url = new URL(path);
+            return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+          } catch {
+            return null;
+          }
+        }
+
+        const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+        const encodedPath = normalizedPath.split("/").map(encodeURIComponent).join("/");
+        return new URL(`/gradio_api/file=${encodedPath}`, HF_SPACE).href;
+      }
+
+      function parseSseEvent(raw: string): string | null {
+        let event = "message";
+        const dataLines: string[] = [];
+        for (const line of raw.split(/\r?\n/)) {
+          if (line.startsWith("event:")) event = line.slice(6).trim() || "message";
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+        }
+        if (dataLines.length === 0) return null;
+
+        const data = dataLines.join("\n");
+        if (event === "error") {
+          let message = data;
+          try {
+            const parsed: unknown = JSON.parse(data);
+            if (typeof parsed === "string") message = parsed;
+            else if (isRecord(parsed)) {
+              for (const key of ["message", "error", "detail"]) {
+                if (typeof parsed[key] === "string" && parsed[key]) {
+                  message = parsed[key];
+                  break;
+                }
+              }
+            }
+          } catch {
+            // Gradio can return plain text instead of JSON.
+          }
+          throw new Error(message || "Error del modelo en Hugging Face. Revisa el prompt o inténtalo más tarde.");
+        }
+        if (event !== "complete") return null;
+
+        let payload: unknown;
+        try {
+          payload = JSON.parse(data);
+        } catch {
+          throw new Error("Hugging Face terminó la generación, pero devolvió una respuesta no válida.");
+        }
+        const url = toVideoUrl(Array.isArray(payload) ? payload[0] : null);
+        if (!url) throw new Error("La generación terminó sin devolver un vídeo. Prueba a reducir duración o pasos.");
+        return url;
+      }
+
+      async function readSseStream(body: ReadableStream<Uint8Array>): Promise<string> {
+        const reader = body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            let separator = /\r?\n\r?\n/.exec(buffer);
+            while (separator && separator.index !== undefined) {
+              const event = buffer.slice(0, separator.index);
+              buffer = buffer.slice(separator.index + separator[0].length);
+              const videoUrl = parseSseEvent(event);
+              if (videoUrl) return videoUrl;
+              separator = /\r?\n\r?\n/.exec(buffer);
+            }
+          }
+
+          buffer += decoder.decode();
+          if (buffer.trim()) {
+            const videoUrl = parseSseEvent(buffer);
+            if (videoUrl) return videoUrl;
+          }
+        } finally {
+          await reader.cancel().catch(() => undefined);
+          reader.releaseLock();
+        }
+
+        throw new Error("La conexión se cerró antes de recibir el vídeo (timeout o Space no disponible). Inténtalo más tarde.");
+      }
+
+      async function getResponseError(response: Response): Promise<string> {
+        const body = (await response.text().catch(() => "")).trim();
+        if (body) {
+          try {
+            const parsed: unknown = JSON.parse(body);
+            if (isRecord(parsed)) {
+              for (const key of ["error", "message", "detail"]) {
+                if (typeof parsed[key] === "string" && parsed[key]) return parsed[key];
+              }
+            }
+          } catch {
+            // Keep the original response text for non-JSON errors.
+          }
+          return body;
+        }
+        return `El servidor respondió con error ${response.status} (${response.statusText || "sin detalle"}).`;
+      }
+
+      function setDownloadUrl(url: string): void {
+        currentDownloadUrl = url;
+        downloadLink.href = url;
+      }
+
+      downloadLink.addEventListener("click", async (event) => {
+        const url = currentDownloadUrl;
+        event.preventDefault();
+        if (!url) return;
+
+        // Open a fallback tab synchronously so popup blockers do not prevent it after the fetch.
+        const fallbackTab = window.open("about:blank", "_blank");
+        if (fallbackTab) fallbackTab.opener = null;
+        try {
+          const response = await fetch(url, { mode: "cors", credentials: "omit" });
+          if (!response.ok) throw new Error(`No se pudo descargar el MP4 (código ${response.status}).`);
+          const blob = await response.blob();
+          if (!blob.size) throw new Error("El servidor de vídeo devolvió un archivo vacío.");
+          const objectUrl = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = objectUrl;
+          anchor.download = `privdark-${Date.now()}.mp4`;
+          document.body.append(anchor);
+          anchor.click();
+          anchor.remove();
+          fallbackTab?.close();
+          window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+        } catch (error: unknown) {
+          setStatus(
+            error instanceof Error ? error.message : "No se pudo descargar el vídeo. Se abrirá en otra pestaña.",
+            "error",
+          );
+          if (fallbackTab) fallbackTab.location.href = url;
+          else window.location.assign(url);
+        }
+      });
+
+      function openHistoryVideo(url: string): void {
+        resultVideo.pause();
+        resultVideo.src = url;
+        resultVideo.load();
+        setDownloadUrl(url);
+        setResultState("ready");
+      }
+
+      function addHistoryItem(url: string): void {
+        historyWrap.classList.add("show");
+        const item = document.createElement("li");
+        item.className = "history-item";
+        item.tabIndex = 0;
+        item.setAttribute("role", "button");
+        item.setAttribute("aria-label", "Reproducir vídeo generado");
+
+        const video = document.createElement("video");
+        video.src = url;
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.preload = "none";
+        item.append(video);
+
+        item.addEventListener("mouseenter", () => {
+          void video.play().catch(() => undefined);
+        });
+        item.addEventListener("mouseleave", () => {
+          video.pause();
+          video.currentTime = 0;
+        });
+        item.addEventListener("click", () => openHistoryVideo(url));
+        item.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openHistoryVideo(url);
+          }
+        });
+
+        historyList.prepend(item);
+        while (historyList.childElementCount > MAX_HISTORY_ITEMS) {
+          const oldest = historyList.lastElementChild;
+          if (!oldest) break;
+          const oldVideo = oldest.querySelector("video");
+          if (oldVideo) {
+            oldVideo.pause();
+            oldVideo.removeAttribute("src");
+            oldVideo.load();
+          }
+          oldest.remove();
+        }
+      }
+
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (file) selectImage(file);
+        // Allows selecting the same file again after a validation error or replacement.
+        fileInput.value = "";
+      });
+
+      for (const eventName of ["dragenter", "dragover"] as const) {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.dataset.active = "true";
+        });
+      }
+      for (const eventName of ["dragleave", "drop"] as const) {
+        dropzone.addEventListener(eventName, () => {
+          dropzone.dataset.active = "false";
+        });
+      }
+      dropzone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const file = (event as DragEvent).dataTransfer?.files[0];
+        if (file) selectImage(file);
+      });
+      window.addEventListener("paste", (event: ClipboardEvent) => {
+        const file = event.clipboardData?.files[0];
+        if (file) selectImage(file);
+      });
+
+      promptInput.maxLength = MAX_PROMPT_LENGTH;
+      promptInput.addEventListener("input", () => {
+        promptCount.textContent = `${promptInput.value.length} / ${MAX_PROMPT_LENGTH}`;
+        updateGenerateButton();
+      });
+      stepsInput.addEventListener("input", () => {
+        stepsValue.textContent = stepsInput.value;
+      });
+      durationInput.addEventListener("input", () => {
+        const duration = formatDuration(durationInput.value);
+        durationValue.textContent = duration;
+        outputMeta.textContent = `MP4 · ${duration} s`;
+      });
+
+      generateButton.addEventListener("click", async () => {
+        const prompt = promptInput.value.trim();
+        if (!selectedFile || !prompt || isGenerating) return;
+
+        isGenerating = true;
+        generateButton.setAttribute("aria-busy", "true");
+        spinner.classList.add("show");
+        buttonLabel.textContent = "Generando...";
+        updateGenerateButton();
+        resultVideo.pause();
+        resultVideo.removeAttribute("src");
+        resultVideo.load();
+        currentDownloadUrl = null;
+        downloadLink.href = "#";
+        setResultState("loading");
+        setStatus("Enviando imagen y parámetros al Worker...");
+
+        let messageIndex = 0;
+        loadingMessage.textContent = loadingMessages[0];
+        const progressTimer = window.setInterval(() => {
+          messageIndex = Math.min(messageIndex + 1, loadingMessages.length - 1);
+          loadingMessage.textContent = loadingMessages[messageIndex];
+        }, 9_000);
+
+        try {
+          const form = new FormData();
+          form.append("image", selectedFile, selectedFile.name);
+          form.append("params", JSON.stringify({
+            prompt,
+            steps: Number(stepsInput.value),
+            duration: Number(durationInput.value),
+          }));
+
+          const response = await fetch(generateUrl, {
+            method: "POST",
+            body: form,
+            cache: "no-store",
+            credentials: "omit",
+          });
+          if (!response.ok || !response.body) throw new Error(await getResponseError(response));
+
+          const url = await readSseStream(response.body);
+          resultVideo.pause();
+          resultVideo.src = url;
+          resultVideo.load();
+          setDownloadUrl(url);
+          setResultState("ready");
+          setStatus("Vídeo generado. Ya puedes reproducirlo o descargarlo.", "success");
+          addHistoryItem(url);
+        } catch (error: unknown) {
+          setStatus(error instanceof Error ? error.message : `Error inesperado: ${String(error)}`, "error");
+          setResultState("empty");
+        } finally {
+          window.clearInterval(progressTimer);
+          isGenerating = false;
+          generateButton.removeAttribute("aria-busy");
+          spinner.classList.remove("show");
+          buttonLabel.textContent = "Generar";
+          updateGenerateButton();
+        }
+      });
+
+      window.addEventListener("pagehide", (event) => {
+        // Keep the preview alive if the browser stores this page in the back-forward cache.
+        if (!event.persisted && previewUrl) URL.revokeObjectURL(previewUrl);
+      }, { once: true });
+
+      setResultState("empty");
+      updateGenerateButton();
     </script>
   </body>
 </html>
