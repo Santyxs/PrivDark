@@ -52,7 +52,7 @@ const baseUrl = import.meta.env.BASE_URL;
         <section class="studio-card stack" aria-label="Controles de generación">
           <div class="param-control model-control">
             <label class="param-label" for="model-select"><span>Modelo de vídeo</span></label>
-            <select id="model-select" data-model class="model-select">
+            <select id="model-select" data-model class="model-select sr-only" aria-hidden="true" tabindex="-1">
               <option value="wan22">Wan 2.2</option>
               <option value="ltx23">LTX-2.3</option>
               <option value="cogvideox">CogVideoX-5B</option>
@@ -60,6 +60,19 @@ const baseUrl = import.meta.env.BASE_URL;
               <option value="minimaxh3">MiniMax H3</option>
               <option value="minimaxh3turbo">MiniMax H3 Turbo</option>
             </select>
+            <div class="model-picker" data-model-picker>
+              <button type="button" class="model-picker-trigger" data-model-trigger aria-expanded="false" aria-haspopup="listbox">
+                <span data-model-current>Wan 2.2</span><span class="model-badge" data-model-badge>SIN AUDIO</span><span class="model-chevron" aria-hidden="true">⌄</span>
+              </button>
+              <div class="model-picker-menu" data-model-menu role="listbox" aria-label="Seleccionar modelo" hidden>
+                <button type="button" class="model-option selected" data-model-option="wan22" role="option" aria-selected="true"><span>Wan 2.2</span><span class="model-badge">SIN AUDIO</span></button>
+                <button type="button" class="model-option" data-model-option="ltx23" role="option" aria-selected="false"><span>LTX-2.3</span><span class="model-badge audio">CON AUDIO</span></button>
+                <button type="button" class="model-option" data-model-option="cogvideox" role="option" aria-selected="false"><span>CogVideoX-5B</span><span class="model-badge">SIN AUDIO</span></button>
+                <button type="button" class="model-option" data-model-option="hunyuan15" role="option" aria-selected="false"><span>HunyuanVideo 1.5</span><span class="model-badge">SIN AUDIO</span></button>
+                <button type="button" class="model-option" data-model-option="minimaxh3" role="option" aria-selected="false"><span>MiniMax H3</span><span class="model-badge">SIN AUDIO</span></button>
+                <button type="button" class="model-option" data-model-option="minimaxh3turbo" role="option" aria-selected="false"><span>MiniMax H3 Turbo</span><span class="model-badge">SIN AUDIO</span></button>
+              </div>
+            </div>
           </div>
           <div class="section-heading">
             <div class="section-number" aria-hidden="true">01</div>
@@ -184,6 +197,41 @@ const baseUrl = import.meta.env.BASE_URL;
       const promptInput = q<HTMLTextAreaElement>("[data-prompt]");
       const promptCount = q<HTMLElement>("[data-prompt-count]");
       const modelInput = q<HTMLSelectElement>("[data-model]");
+      const modelTrigger = q<HTMLButtonElement>("[data-model-trigger]");
+      const modelMenu = q<HTMLElement>("[data-model-menu]");
+      const modelCurrent = q<HTMLElement>("[data-model-current]");
+      const modelBadge = q<HTMLElement>("[data-model-badge]");
+      const modelOptions = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-model-option]"));
+      const modelNames: Record<string, string> = { wan22: "Wan 2.2", ltx23: "LTX-2.3", cogvideox: "CogVideoX-5B", hunyuan15: "HunyuanVideo 1.5", minimaxh3: "MiniMax H3", minimaxh3turbo: "MiniMax H3 Turbo" };
+      function syncModelPicker(): void {
+        const audio = modelInput.value === "ltx23";
+        modelCurrent.textContent = modelNames[modelInput.value] ?? modelInput.value;
+        modelBadge.textContent = audio ? "CON AUDIO" : "SIN AUDIO";
+        modelBadge.classList.toggle("audio", audio);
+        for (const option of modelOptions) {
+          const selected = option.dataset.modelOption === modelInput.value;
+          option.classList.toggle("selected", selected);
+          option.setAttribute("aria-selected", String(selected));
+        }
+      }
+      modelTrigger.addEventListener("click", () => {
+        const open = modelMenu.hidden;
+        modelMenu.hidden = !open;
+        modelTrigger.setAttribute("aria-expanded", String(open));
+      });
+      for (const option of modelOptions) option.addEventListener("click", () => {
+        modelInput.value = option.dataset.modelOption ?? "wan22";
+        syncModelPicker();
+        modelMenu.hidden = true;
+        modelTrigger.setAttribute("aria-expanded", "false");
+      });
+      document.addEventListener("click", (event) => {
+        if (!(event.target instanceof Node) || !event.target.parentElement?.closest("[data-model-picker]")) {
+          modelMenu.hidden = true;
+          modelTrigger.setAttribute("aria-expanded", "false");
+        }
+      });
+      syncModelPicker();
       const stepsInput = q<HTMLInputElement>("[data-steps]");
       const stepsValue = q<HTMLElement>("[data-steps-value]");
       const durationInput = q<HTMLInputElement>("[data-duration]");
@@ -464,15 +512,21 @@ const baseUrl = import.meta.env.BASE_URL;
         video.muted = true;
         video.loop = true;
         video.playsInline = true;
-        video.preload = "none";
+        video.preload = "auto";
         item.append(video);
-
-        item.addEventListener("mouseenter", () => {
-          void video.play().catch(() => undefined);
-        });
+        // Load enough video data for a visible frame, then play muted inline.
+        video.addEventListener("loadeddata", () => void video.play().catch(() => undefined), { once: true });
+        void video.play().catch(() => undefined);
+        const previewObserver = new IntersectionObserver((entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) void video.play().catch(() => undefined);
+            else video.pause();
+          }
+        }, { threshold: 0.15 });
+        previewObserver.observe(item);
+        item.addEventListener("mouseenter", () => void video.play().catch(() => undefined));
         item.addEventListener("mouseleave", () => {
-          video.pause();
-          video.currentTime = 0;
+          if (!item.getBoundingClientRect().width) video.pause();
         });
         item.addEventListener("click", () => openHistoryVideo(url));
         item.addEventListener("keydown", (event) => {
