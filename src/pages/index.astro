@@ -1,0 +1,255 @@
+---
+import "@/global.css";
+
+const title = "PrivDark — Your Private AI Studio";
+const description = "Estudio audiovisual con IA. Anima imágenes y crea clips de vídeo de 10 segundos con Wan 2.2.";
+const ogImage = "og.png";
+const baseUrl = import.meta.env.BASE_URL;
+const siteOrigin = Astro.site?.origin ?? "https://privdark.pages.dev";
+const canonical = new URL(Astro.url.pathname, siteOrigin).toString();
+const absoluteOg = new URL(`${baseUrl}${ogImage}`, siteOrigin).toString();
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "PrivDark",
+  url: canonical,
+  description,
+  applicationCategory: "MultimediaApplication",
+  operatingSystem: "Any (web)",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+};
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#08070d" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="keywords" content="PrivDark, IA, generación de vídeo, imagen a vídeo, Wan 2.2, inteligencia artificial, estudio audiovisual" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href={`${baseUrl}favicon.svg`} />
+    <link rel="apple-touch-icon" href={`${baseUrl}og.png`} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PrivDark" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={absoluteOg} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PrivDark — Your Private AI Studio" />
+    <meta property="og:locale" content="es_ES" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={absoluteOg} />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="mx-auto max-w-6xl px-5 sm:px-6 py-4 flex items-center justify-between gap-4">
+        <a href={baseUrl} class="brand-lockup" aria-label="PrivDark, inicio">
+          <svg viewBox="0 0 40 40" class="brand-mark" aria-hidden="true">
+            <defs>
+              <linearGradient id="privdark-mark" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#e7c5ff" />
+                <stop offset="0.52" stop-color="#a76bff" />
+                <stop offset="1" stop-color="#ed70d7" />
+              </linearGradient>
+            </defs>
+            <path d="M20 3.5 34 11.5v17L20 36.5 6 28.5v-17L20 3.5Z" fill="none" stroke="url(#privdark-mark)" stroke-width="1.7" />
+            <path d="M24.8 10.7a10.1 10.1 0 1 0 4.5 18.6A11.2 11.2 0 0 1 24.8 10.7Z" fill="url(#privdark-mark)" />
+            <circle cx="25.9" cy="19.5" r="1.35" fill="#100b18" />
+          </svg>
+          <span class="brand-wordmark">PRIV<span>DARK</span></span>
+          <span class="brand-pill">AI STUDIO</span>
+        </a>
+
+        <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
+          <span class="status-indicator" aria-hidden="true"></span>
+          <span>Estudio creativo</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="mx-auto max-w-6xl px-5 sm:px-6 pt-14 sm:pt-20 pb-9 text-center">
+        <p class="eyebrow"><span class="eyebrow-line"></span> IMAGE TO VIDEO <span class="eyebrow-line"></span></p>
+        <h1 class="mt-5 text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-white leading-[1.08]">
+          Convierte imágenes en <span class="gradient-text">movimiento.</span>
+        </h1>
+        <p class="mt-5 text-slate-400 max-w-2xl mx-auto leading-relaxed text-sm sm:text-base">
+          Crea clips cinematográficos con IA a partir de una imagen y una descripción de movimiento.
+          Tu pequeño estudio audiovisual, impulsado por Wan 2.2.
+        </p>
+        <div class="mt-7 flex flex-wrap justify-center gap-2">
+          <span class="feature-chip"><span class="chip-dot"></span> Wan 2.2</span>
+          <span class="feature-chip">10 segundos por clip</span>
+          <span class="feature-chip">Exportación MP4</span>
+        </div>
+      </section>
+
+      <section class="mx-auto max-w-6xl px-5 sm:px-6 pb-20" id="studio">
+        <div class="studio-shell grid lg:grid-cols-[0.96fr_1.04fr] gap-5 lg:gap-6 p-3 sm:p-5">
+          <div class="studio-card space-y-6 p-3 sm:p-5">
+            <div class="section-heading">
+              <div class="section-number">01</div>
+              <div>
+                <h2>Imagen de origen</h2>
+                <p>Elige la imagen que quieres animar.</p>
+              </div>
+            </div>
+
+            <label class="dropzone group" data-dropzone>
+              <input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" data-file-input />
+              <div class="dropzone-empty text-center px-6 py-10" data-dropzone-empty>
+                <div class="upload-icon-wrap mx-auto">
+                  <svg viewBox="0 0 24 24" class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15.5v3A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-3" />
+                  </svg>
+                </div>
+                <p class="mt-4 text-slate-200 font-medium">Arrastra una imagen aquí</p>
+                <p class="mt-1 text-sm text-brand-glow underline underline-offset-4">o explora tus archivos</p>
+                <p class="mt-3 text-xs text-slate-500">PNG, JPG o WEBP · máximo 8 MB</p>
+                <p class="mt-1 text-[11px] text-slate-600">Usa imágenes de personajes adultos ficticios.</p>
+              </div>
+              <img data-dropzone-preview class="hidden max-h-[340px] w-full rounded-xl object-contain" alt="Vista previa de la imagen seleccionada" />
+            </label>
+
+            <div class="space-y-3">
+              <div class="section-heading compact-heading">
+                <div class="section-number">02</div>
+                <div>
+                  <h2>Dirección creativa</h2>
+                  <p>Describe qué debe ocurrir en el vídeo.</p>
+                </div>
+              </div>
+              <textarea
+                id="prompt"
+                rows="5"
+                data-prompt
+                class="prompt-field"
+                placeholder="Describe el movimiento, la expresión, la cámara, la iluminación y el ambiente de la escena..."
+              ></textarea>
+              <div class="flex items-start justify-between gap-3 text-xs text-slate-500">
+                <span>Especifica acciones y movimientos. El modelo ya analiza la imagen.</span>
+                <span class="shrink-0" data-prompt-count>0 / 1200</span>
+              </div>
+            </div>
+
+            <details class="advanced-panel">
+              <summary>
+                <span>Parámetros de generación</span>
+                <span class="advanced-summary-meta">Configuración optimizada</span>
+              </summary>
+              <div class="advanced-content space-y-4">
+                <div class="parameter-row">
+                  <div>
+                    <p class="parameter-label">Duración</p>
+                    <p class="parameter-help">Duración máxima admitida por este Space</p>
+                  </div>
+                  <span class="parameter-value">10,0 s</span>
+                  <input type="hidden" data-duration value="10" />
+                  <span class="hidden" data-duration-value>10s</span>
+                </div>
+                <div class="space-y-2">
+                  <div class="parameter-row">
+                    <div>
+                      <p class="parameter-label">Pasos de inferencia</p>
+                      <p class="parameter-help">Más pasos pueden mejorar el detalle, pero consumen más GPU.</p>
+                    </div>
+                    <span class="parameter-value"><span data-steps-value>3</span></span>
+                  </div>
+                  <input type="range" min="3" max="4" step="1" value="3" data-steps class="w-full accent-brand" aria-label="Pasos de inferencia" />
+                </div>
+                <p class="text-xs leading-relaxed text-slate-500">3 pasos priorizan la cuota gratuita. Puedes subir a 4 si prefieres probar un poco más de detalle, con un consumo mayor.</p>
+                <p class="text-xs leading-relaxed text-slate-500">La generación depende de la disponibilidad de Hugging Face ZeroGPU. Un clip de 10 segundos puede consumir casi toda la cuota diaria.</p>
+              </div>
+            </details>
+
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+              <button data-generate class="btn-primary w-full sm:w-auto" disabled>
+                <span class="pulse-dot hidden" data-spinner></span>
+                <span data-button-label>Generar vídeo</span>
+                <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                  <path d="m7 4 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+              <p class="text-xs text-slate-500 sm:max-w-[190px]" data-status>Añade una imagen y describe el movimiento.</p>
+            </div>
+          </div>
+
+          <div class="studio-card output-card p-3 sm:p-5">
+            <div class="flex items-center justify-between gap-3 mb-5">
+              <div class="section-heading">
+                <div class="section-number">03</div>
+                <div>
+                  <h2>Resultado</h2>
+                  <p>Tu creación aparecerá aquí.</p>
+                </div>
+              </div>
+              <span class="output-tag">PREVIEW</span>
+            </div>
+
+            <div class="result-frame">
+              <div data-result-empty class="result-empty">
+                <div class="result-empty-mark">
+                  <svg viewBox="0 0 48 48" class="w-9 h-9" fill="none" stroke="currentColor" stroke-width="1.15" aria-hidden="true">
+                    <rect x="5.5" y="9" width="37" height="30" rx="6" />
+                    <path d="m21 17 11 7-11 7V17Z" fill="currentColor" stroke="none" />
+                  </svg>
+                </div>
+                <p class="font-medium text-slate-300">Tu vídeo está por crear</p>
+                <p class="mt-1 text-xs text-slate-500">La previsualización aparecerá en este espacio.</p>
+              </div>
+              <div data-result-loading class="hidden result-loading">
+                <div class="loading-orbit"><span></span><span></span><span></span></div>
+                <p class="font-medium text-slate-200" data-loading-message>Preparando la generación...</p>
+                <p class="mt-2 text-xs text-slate-500">La GPU puede tardar un poco en estar disponible.</p>
+              </div>
+              <video data-result-video controls playsinline class="hidden w-full" preload="metadata"></video>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
+              <p class="text-xs text-slate-500">Formato de salida: MP4 · 16 FPS nativos</p>
+              <a data-download class="btn-ghost hidden" download>
+                <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                  <path d="M10 2.5v10m0 0 3.5-3.5M10 12.5 6.5 9M3.5 14v2A1.5 1.5 0 0 0 5 17.5h10a1.5 1.5 0 0 0 1.5-1.5v-2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Descargar MP4
+              </a>
+            </div>
+
+            <div data-history-wrap class="history-wrap hidden">
+              <div class="history-heading">
+                <span>Generaciones de esta sesión</span>
+                <span class="history-session-dot"></span>
+              </div>
+              <ul data-history class="flex gap-3 overflow-x-auto pb-1"></ul>
+            </div>
+          </div>
+        </div>
+
+        <p class="studio-footnote">PRIVDARK <span>·</span> Estudio experimental de generación audiovisual con IA.</p>
+      </section>
+    </main>
+
+    <footer class="border-t border-white/[0.07]">
+      <div class="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-7 text-center text-[10px] text-slate-600 sm:flex-row sm:justify-between sm:text-left sm:px-6">
+        <span class="tracking-[0.18em]">PRIVDARK <span class="text-brand/70">·</span> YOUR PRIVATE AI STUDIO</span>
+        <span>Experimentación audiovisual impulsada por Wan 2.2.</span>
+      </div>
+    </footer>
+
+    <script>
+      import "@/studio";
+    </script>
+  </body>
+</html>
