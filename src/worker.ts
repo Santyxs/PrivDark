@@ -121,14 +121,10 @@ async function handleGenerate(request: Request, env: Env): Promise<Response> {
 
 const VIDEO_MODELS: Record<string, { readonly label: string; readonly space: string }> = {
   ltx23: { label: "LTX-2.3", space: "Lightricks/LTX-2-3" },
-  ltx25: { label: "LTX-2.5", space: "Lightricks/LTX-2.5" },
   cogvideox: { label: "CogVideoX-5B", space: "zai-org/CogVideoX-5B-Space" },
   hunyuan15: { label: "HunyuanVideo 1.5", space: "multimodalart/Hunyuan-Video-1-5" },
-  animatediff: { label: "AnimateDiff-Lightning", space: "AI-Platform/Mochi_1_Video" },
-  longcat: { label: "LongCat-Video", space: "multimodalart/LongCat-Video" },
   minimaxh3: { label: "MiniMax H3", space: "multimodalart/minimax-h3" },
   minimaxh3turbo: { label: "MiniMax H3 Turbo", space: "akhaliq/MiniMax-H3-Turbo-Lora" },
-  mochi: { label: "Mochi Video", space: "HorseTheUnicorn/chvrch-tv-mochi-demo" },
 };
 
 async function generateWithDynamicSpace(
@@ -144,11 +140,7 @@ async function generateWithDynamicSpace(
     if (!Object.keys(apiInfo).length) throw error;
   }
   const detectedEndpoint = chooseVideoEndpoint(apiInfo);
-  const endpoint = model.space === "multimodalart/LongCat-Video"
-    ? (findNamedEndpoint(apiInfo, "image_to_video") ?? detectedEndpoint)
-    : model.space === "HorseTheUnicorn/chvrch-tv-mochi-demo"
-      ? (findNamedEndpoint(apiInfo, "predict") ?? detectedEndpoint)
-      : detectedEndpoint;
+  const endpoint = detectedEndpoint;
   if (!endpoint) throw new HuggingFaceError(`${model.label}: no se encontró un endpoint de generación de vídeo.`);
   let imageData: Record<string, unknown> | null = null;
   if (endpoint.imageIndex >= 0) {
@@ -214,31 +206,6 @@ function knownSpaceApiFallback(spaceId: string): Record<string, unknown> {
   const parameter = (name: string, type: string, defaultValue?: unknown, choices?: unknown[]) => ({
     parameter_name: name, label: name, parameter_type: { type, ...(choices ? { choices } : {}) }, default: defaultValue,
   });
-  if (spaceId === "Lightricks/LTX-2.5") {
-    endpoint.run = { parameters: [
-      parameter("prompt", "string"), parameter("image_path", "image", null),
-      parameter("height", "number", 832), parameter("width", "number", 1472),
-      parameter("duration_s", "number", 2), parameter("seed", "number", 42),
-      parameter("decoder", "string", "conv", ["conv", "diffusion"]),
-      parameter("auto_len", "boolean", false), parameter("randomize_seed", "boolean", false),
-      parameter("do_enhance", "boolean", false),
-    ] };
-  } else if (spaceId === "multimodalart/LongCat-Video") {
-    endpoint.image_to_video = { parameters: [
-      parameter("image", "image"), parameter("prompt", "string"),
-      parameter("negative_prompt", "string", "ugly, blurry, low quality, static, subtitles, watermark"),
-      parameter("resolution", "string", "480p", ["480p", "720p"]), parameter("seed", "number", 42),
-      parameter("use_distill", "boolean", true), parameter("use_refine", "boolean", false),
-    ] };
-  } else if (spaceId === "HorseTheUnicorn/chvrch-tv-mochi-demo") {
-    endpoint.predict = { parameters: [parameter("prompt", "string")] };
-  } else if (spaceId === "AI-Platform/Mochi_1_Video") {
-    endpoint.instant_video = { parameters: [
-      parameter("prompt", "string"), parameter("base", "string", "Realistic", ["Cartoon", "Realistic", "3d", "Anime"]),
-      parameter("motion", "string", "guoyww/animatediff-motion-lora-zoom-in", ["", "guoyww/animatediff-motion-lora-zoom-in"]),
-      parameter("step", "number", 4, [1, 2, 4, 8]),
-    ] };
-  }
   return Object.keys(endpoint).length ? { named_endpoints: endpoint } : {};
 }
 

@@ -55,14 +55,10 @@ const baseUrl = import.meta.env.BASE_URL;
             <select id="model-select" data-model class="model-select">
               <option value="wan22">Wan 2.2</option>
               <option value="ltx23">LTX-2.3</option>
-              <option value="ltx25">LTX-2.5</option>
               <option value="cogvideox">CogVideoX-5B</option>
               <option value="hunyuan15">HunyuanVideo 1.5</option>
-              <option value="animatediff">AnimateDiff-Lightning</option>
-              <option value="longcat">LongCat-Video</option>
               <option value="minimaxh3">MiniMax H3</option>
               <option value="minimaxh3turbo">MiniMax H3 Turbo</option>
-              <option value="mochi">Mochi Video</option>
             </select>
           </div>
           <div class="section-heading">
@@ -423,9 +419,6 @@ const baseUrl = import.meta.env.BASE_URL;
         event.preventDefault();
         if (!url) return;
 
-        // Open a fallback tab synchronously so popup blockers do not prevent it after the fetch.
-        const fallbackTab = window.open("about:blank", "_blank");
-        if (fallbackTab) fallbackTab.opener = null;
         try {
           const response = await fetch(url, { mode: "cors", credentials: "omit" });
           if (!response.ok) throw new Error(`No se pudo descargar el MP4 (código ${response.status}).`);
@@ -435,18 +428,18 @@ const baseUrl = import.meta.env.BASE_URL;
           const anchor = document.createElement("a");
           anchor.href = objectUrl;
           anchor.download = `privdark-${Date.now()}.mp4`;
+          anchor.style.display = "none";
           document.body.append(anchor);
           anchor.click();
           anchor.remove();
-          fallbackTab?.close();
           window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
         } catch (error: unknown) {
           setStatus(
-            error instanceof Error ? error.message : "No se pudo descargar el vídeo. Se abrirá en otra pestaña.",
+            error instanceof Error ? error.message : "No se pudo descargar el vídeo. Prueba a abrir el enlace directamente.",
             "error",
           );
-          if (fallbackTab) fallbackTab.location.href = url;
-          else window.location.assign(url);
+          // Fallback navigates in the current tab, never creates a blank popup.
+          window.location.assign(url);
         }
       });
 

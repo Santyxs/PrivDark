@@ -717,7 +717,7 @@ textarea:focus-visible,
   position: relative;
   z-index: 1;
   display: block;
-  width: 100%;
+  width: auto;
   height: auto;
   max-width: 100%;
   max-height: min(80vh, 760px);
