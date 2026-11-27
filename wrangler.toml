@@ -1,8 +1,7 @@
-# PrivDark API. Deploy: pnpm worker:deploy
+# PrivDark API. Deploy: npm run worker:deploy
 name = "privdark-api"
 main = "src/worker.ts"
 compatibility_date = "2026-11-27"
-compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ALLOWED_ORIGINS = "https://privdark.pages.dev"
