@@ -52,10 +52,10 @@ const baseUrl = import.meta.env.BASE_URL;
           <div>
             <div class="section-heading compact">
               <div class="section-number">02</div>
-              <div><h2>Prompt</h2><p>Describe el movimiento</p></div>
+              <div><h2>Prompt</h2><p>Máx. 300 caracteres</p></div>
             </div>
-            <textarea rows="4" data-prompt class="prompt-field" placeholder="Movimiento, cámara, expresión..."></textarea>
-            <div class="prompt-meta"><span></span><span data-prompt-count>0 / 1200</span></div>
+            <textarea rows="2" data-prompt class="prompt-field" placeholder="Movimiento breve..."></textarea>
+            <div class="prompt-meta"><span></span><span data-prompt-count>0 / 300</span></div>
           </div>
 
           <div class="params">
@@ -106,7 +106,7 @@ const baseUrl = import.meta.env.BASE_URL;
 
           <div class="output-foot">
             <p data-output-meta>MP4 · 5.0 s</p>
-            <a data-download class="btn-ghost" download>Descargar</a>
+            <a data-download class="btn-ghost" href="#">Descargar MP4</a>
           </div>
 
           <div data-history-wrap class="history-wrap">
@@ -124,7 +124,7 @@ const baseUrl = import.meta.env.BASE_URL;
       const W = import.meta.env.PUBLIC_WORKER_URL as string | undefined;
       if (!W) throw new Error("PUBLIC_WORKER_URL no definida");
       const MAX = 8 << 20;
-      const PL = 1200;
+      const PL = 300;
       const HF = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
 
       const q = <T extends Element>(s: string): T => {
@@ -309,6 +309,28 @@ const baseUrl = import.meta.env.BASE_URL;
         return (await res.text().catch(() => "")) || `${res.status} ${res.statusText}`;
       };
 
+      const setDownload = (url: string): void => {
+        dl.onclick = async (e) => {
+          e.preventDefault();
+          try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("fail");
+            const blob = await res.blob();
+            const obj = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = obj;
+            a.download = `privdark-${Date.now()}.mp4`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(obj);
+          } catch {
+            window.open(url, "_blank", "noopener,noreferrer");
+          }
+        };
+        dl.href = url;
+      };
+
       const addHist = (url: string): void => {
         hw.classList.add("show");
         const li = document.createElement("li");
@@ -330,8 +352,7 @@ const baseUrl = import.meta.env.BASE_URL;
           vid.pause();
           vid.src = url;
           vid.load();
-          dl.href = url;
-          dl.download = `privdark-${Date.now()}.mp4`;
+          setDownload(url);
           show("ready");
         };
         li.appendChild(v);
@@ -368,8 +389,7 @@ const baseUrl = import.meta.env.BASE_URL;
           vid.pause();
           vid.src = url;
           vid.load();
-          dl.href = url;
-          dl.download = `privdark-${Date.now()}.mp4`;
+          setDownload(url);
           show("ready");
           status("Listo.", "success");
           addHist(url);
