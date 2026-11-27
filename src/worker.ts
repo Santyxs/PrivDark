@@ -15,7 +15,7 @@ export interface Env {
 }
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_PROMPT_LENGTH = 1200;
+const MAX_PROMPT_LENGTH = 300;
 const DEFAULT_DURATION = 5;
 const MIN_DURATION = 1;
 const MAX_DURATION = 10;
@@ -162,24 +162,23 @@ async function submitJob(
     meta: { _type: "gradio.FileData" },
   };
 
-  // Order mirrors the upstream Space's `ui_inputs` array.
   const data = [
     inputImage,
-    null, // last_image
+    null,
     prompt,
     steps,
     DEFAULT_NEGATIVE_PROMPT,
     duration,
-    1, // guidance_scale
-    1, // guidance_scale_2
-    42, // seed (randomized by flag below)
-    true, // randomize_seed
-    6, // video quality
-    "UniPCMultistep", // scheduler
-    3.0, // flow_shift
-    16, // native FPS
-    false, // safe_mode
-    true, // return video component
+    1,
+    1,
+    42,
+    true,
+    6,
+    "UniPCMultistep",
+    3.0,
+    16,
+    false,
+    true,
   ];
 
   const response = await fetch(`${env.HF_SPACE_BASE}/gradio_api/call/${env.HF_FN_NAME}`, {
