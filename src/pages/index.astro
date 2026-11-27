@@ -205,58 +205,123 @@ const jsonLd = {
     </footer>
 
     <script>
-      const W = import.meta.env.PUBLIC_WORKER_URL;
-      if (!W) throw new Error("PUBLIC_WORKER_URL no definida");
-      const MAX = 8 << 20, PL = 1200, HF = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
-      const q = (s) => document.querySelector(s);
-      const dz = q("[data-dropzone]"), fi = q("[data-file-input]"), de = q("[data-dropzone-empty]"), dp = q("[data-dropzone-preview]");
-      const pr = q("[data-prompt]"), pc = q("[data-prompt-count]"), st = q("[data-steps]"), sv = q("[data-steps-value]");
-      const btn = q("[data-generate]"), bl = q("[data-button-label]"), sp = q("[data-spinner]"), stt = q("[data-status]");
-      const re = q("[data-result-empty]"), rl = q("[data-result-loading]"), lm = q("[data-loading-message]");
-      const vid = q("[data-result-video]"), dl = q("[data-download]"), hw = q("[data-history-wrap]"), hl = q("[data-history]");
-      let file = null, busy = false, prev = null;
+      type Tone = "info" | "error" | "success";
+      type ResultState = "empty" | "loading" | "ready";
 
-      const status = (m, t = "info") => {
-        stt.textContent = m;
-        stt.className = "text-xs sm:max-w-[190px] " + (t === "error" ? "text-rose-400" : t === "success" ? "text-brand-glow" : "text-slate-500");
+      const W = import.meta.env.PUBLIC_WORKER_URL as string | undefined;
+      if (!W) throw new Error("PUBLIC_WORKER_URL no definida");
+      const MAX = 8 << 20;
+      const PL = 1200;
+      const HF = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
+
+      const q = <T extends Element>(s: string): T => {
+        const el = document.querySelector<T>(s);
+        if (!el) throw new Error(`Falta: ${s}`);
+        return el;
       };
-      const ready = () => { btn.disabled = !(file && pr.value.trim() && !busy); };
-      const show = (s) => {
+
+      const dz = q<HTMLLabelElement>("[data-dropzone]");
+      const fi = q<HTMLInputElement>("[data-file-input]");
+      const de = q<HTMLElement>("[data-dropzone-empty]");
+      const dp = q<HTMLImageElement>("[data-dropzone-preview]");
+      const pr = q<HTMLTextAreaElement>("[data-prompt]");
+      const pc = q<HTMLElement>("[data-prompt-count]");
+      const st = q<HTMLInputElement>("[data-steps]");
+      const sv = q<HTMLElement>("[data-steps-value]");
+      const btn = q<HTMLButtonElement>("[data-generate]");
+      const bl = q<HTMLElement>("[data-button-label]");
+      const sp = q<HTMLElement>("[data-spinner]");
+      const stt = q<HTMLElement>("[data-status]");
+      const re = q<HTMLElement>("[data-result-empty]");
+      const rl = q<HTMLElement>("[data-result-loading]");
+      const lm = q<HTMLElement>("[data-loading-message]");
+      const vid = q<HTMLVideoElement>("[data-result-video]");
+      const dl = q<HTMLAnchorElement>("[data-download]");
+      const hw = q<HTMLElement>("[data-history-wrap]");
+      const hl = q<HTMLUListElement>("[data-history]");
+
+      let file: File | null = null;
+      let busy = false;
+      let prev: string | null = null;
+
+      const status = (m: string, t: Tone = "info"): void => {
+        stt.textContent = m;
+        stt.className =
+          "text-xs sm:max-w-[190px] " +
+          (t === "error" ? "text-rose-400" : t === "success" ? "text-brand-glow" : "text-slate-500");
+      };
+
+      const ready = (): void => {
+        btn.disabled = !(file && pr.value.trim() && !busy);
+      };
+
+      const show = (s: ResultState): void => {
         re.classList.toggle("hidden", s !== "empty");
         rl.classList.toggle("hidden", s !== "loading");
         vid.classList.toggle("hidden", s !== "ready");
         dl.classList.toggle("hidden", s !== "ready");
       };
-      const accept = (f) => {
+
+      const accept = (f: File): void => {
         const ok = /image\/(png|jpeg|webp)/i.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name);
         if (!ok) return status("Formato no compatible. Usa PNG, JPG o WEBP.", "error");
         if (!f.size || f.size > MAX) return status(f.size ? "La imagen supera 8 MB." : "Archivo vacío.", "error");
         file = f;
         if (prev) URL.revokeObjectURL(prev);
         prev = URL.createObjectURL(f);
-        dp.src = prev; dp.classList.remove("hidden"); de.classList.add("hidden");
-        ready(); status("Imagen preparada. Ya puedes generar.", "success");
+        dp.src = prev;
+        dp.classList.remove("hidden");
+        de.classList.add("hidden");
+        ready();
+        status("Imagen preparada. Ya puedes generar.", "success");
       };
 
-      fi.onchange = () => fi.files?.[0] && accept(fi.files[0]);
-      ["dragenter", "dragover"].forEach((e) => dz.addEventListener(e, (ev) => { ev.preventDefault(); dz.dataset.active = "true"; }));
-      ["dragleave", "drop"].forEach((e) => dz.addEventListener(e, () => { dz.dataset.active = "false"; }));
-      dz.ondrop = (e) => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) accept(f); };
-      window.addEventListener("paste", (e) => { const f = e.clipboardData?.files?.[0]; if (f) accept(f); });
+      fi.onchange = () => {
+        const f = fi.files?.[0];
+        if (f) accept(f);
+      };
+      (["dragenter", "dragover"] as const).forEach((e) =>
+        dz.addEventListener(e, (ev) => {
+          ev.preventDefault();
+          dz.dataset.active = "true";
+        }),
+      );
+      (["dragleave", "drop"] as const).forEach((e) =>
+        dz.addEventListener(e, () => {
+          dz.dataset.active = "false";
+        }),
+      );
+      dz.ondrop = (e) => {
+        e.preventDefault();
+        const f = e.dataTransfer?.files?.[0];
+        if (f) accept(f);
+      };
+      window.addEventListener("paste", (e: ClipboardEvent) => {
+        const f = e.clipboardData?.files?.[0];
+        if (f) accept(f);
+      });
       pr.maxLength = PL;
-      pr.oninput = () => { pc.textContent = `${pr.value.length} / ${PL}`; ready(); };
-      st.oninput = () => { sv.textContent = st.value; };
+      pr.oninput = () => {
+        pc.textContent = `${pr.value.length} / ${PL}`;
+        ready();
+      };
+      st.oninput = () => {
+        sv.textContent = st.value;
+      };
 
-      const videoUrl = (d) => {
-        if (typeof d === "string") return /^https?:/i.test(d) ? d : new URL(`/gradio_api/file=${d.replace(/^\//, "")}`, HF).href;
+      const videoUrl = (d: unknown): string | null => {
+        if (typeof d === "string")
+          return /^https?:/i.test(d) ? d : new URL(`/gradio_api/file=${d.replace(/^\//, "")}`, HF).href;
         if (!d || typeof d !== "object") return null;
-        const c = d.url || d.path;
+        const rec = d as { url?: unknown; path?: unknown };
+        const c = typeof rec.url === "string" ? rec.url : rec.path;
         if (typeof c !== "string" || !c) return null;
         return /^https?:/i.test(c) ? c : new URL(`/gradio_api/file=${c.replace(/^\//, "")}`, HF).href;
       };
 
-      const parseEvt = (raw) => {
-        let ev = "message", lines = [];
+      const parseEvt = (raw: string): string | null => {
+        let ev = "message";
+        const lines: string[] = [];
         for (const l of raw.split(/\r?\n/)) {
           if (l.startsWith("event:")) ev = l.slice(6).trim();
           else if (l.startsWith("data:")) lines.push(l.slice(5).trimStart());
@@ -265,22 +330,29 @@ const jsonLd = {
         const data = lines.join("\n");
         if (ev === "error") {
           try {
-            const p = JSON.parse(data);
-            throw new Error(typeof p === "string" ? p : p?.message || data);
+            const p: unknown = JSON.parse(data);
+            const msg =
+              typeof p === "string"
+                ? p
+                : p && typeof p === "object" && "message" in p && typeof (p as { message: unknown }).message === "string"
+                  ? (p as { message: string }).message
+                  : data;
+            throw new Error(msg);
           } catch (e) {
             if (e instanceof Error && e.message !== data) throw e;
             throw new Error(data || "Error de Hugging Face");
           }
         }
         if (ev !== "complete") return null;
-        const p = JSON.parse(data);
+        const p: unknown = JSON.parse(data);
         const u = videoUrl(Array.isArray(p) ? p[0] : null);
         if (!u) throw new Error("No se recibió el vídeo");
         return u;
       };
 
-      const readSSE = async (body) => {
-        const r = body.getReader(), d = new TextDecoder();
+      const readSSE = async (body: ReadableStream<Uint8Array>): Promise<string> => {
+        const r = body.getReader();
+        const d = new TextDecoder();
         let buf = "";
         try {
           while (true) {
@@ -289,62 +361,118 @@ const jsonLd = {
             buf += d.decode(value, { stream: true });
             const parts = buf.split(/\r?\n\r?\n/);
             buf = parts.pop() || "";
-            for (const c of parts) { const u = parseEvt(c); if (u) return u; }
+            for (const c of parts) {
+              const u = parseEvt(c);
+              if (u) return u;
+            }
           }
           buf += d.decode();
-          if (buf.trim()) { const u = parseEvt(buf); if (u) return u; }
-        } finally { await r.cancel().catch(() => {}); r.releaseLock(); }
+          if (buf.trim()) {
+            const u = parseEvt(buf);
+            if (u) return u;
+          }
+        } finally {
+          await r.cancel().catch(() => undefined);
+          r.releaseLock();
+        }
         throw new Error("Conexión cerrada sin vídeo");
       };
 
-      const errMsg = async (res) => {
-        try { const j = await res.clone().json(); if (j?.error) return j.error; } catch {}
+      const errMsg = async (res: Response): Promise<string> => {
+        try {
+          const j: unknown = await res.clone().json();
+          if (j && typeof j === "object" && "error" in j && typeof (j as { error: unknown }).error === "string")
+            return (j as { error: string }).error;
+        } catch {
+          /* ignore */
+        }
         return (await res.text().catch(() => "")) || `${res.status} ${res.statusText}`;
       };
 
-      const addHist = (url) => {
+      const addHist = (url: string): void => {
         hw.classList.remove("hidden");
         const li = document.createElement("li");
         li.className = "history-item";
         const v = document.createElement("video");
-        Object.assign(v, { src: url, muted: true, loop: true, playsInline: true, preload: "metadata", className: "h-20 w-32 object-cover" });
-        li.onmouseenter = () => v.play().catch(() => {});
-        li.onmouseleave = () => { v.pause(); v.currentTime = 0; };
+        v.src = url;
+        v.muted = true;
+        v.loop = true;
+        v.playsInline = true;
+        v.preload = "metadata";
+        v.className = "h-20 w-32 object-cover";
+        li.onmouseenter = () => {
+          void v.play().catch(() => undefined);
+        };
+        li.onmouseleave = () => {
+          v.pause();
+          v.currentTime = 0;
+        };
         li.onclick = () => {
-          vid.pause(); vid.src = url; vid.load();
-          dl.href = url; dl.download = `privdark-${Date.now()}.mp4`;
+          vid.pause();
+          vid.src = url;
+          vid.load();
+          dl.href = url;
+          dl.download = `privdark-${Date.now()}.mp4`;
           show("ready");
         };
-        li.appendChild(v); hl.prepend(li);
+        li.appendChild(v);
+        hl.prepend(li);
       };
 
-      const msgs = ["Preparando la imagen...", "Esperando GPU en Hugging Face...", "Cargando Wan 2.2...", "Generando fotogramas...", "Montando MP4...", "Finalizando..."];
+      const msgs = [
+        "Preparando la imagen...",
+        "Esperando GPU en Hugging Face...",
+        "Cargando Wan 2.2...",
+        "Generando fotogramas...",
+        "Montando MP4...",
+        "Finalizando...",
+      ];
 
       btn.onclick = async () => {
         const prompt = pr.value.trim();
         if (!file || !prompt || busy) return;
-        busy = true; sp.classList.remove("hidden"); bl.textContent = "Generando..."; ready();
-        show("loading"); status("Enviando imagen y solicitando GPU...");
-        let i = 0; lm.textContent = msgs[0];
-        const t = setInterval(() => { i = Math.min(i + 1, msgs.length - 1); lm.textContent = msgs[i]; }, 9000);
+        busy = true;
+        sp.classList.remove("hidden");
+        bl.textContent = "Generando...";
+        ready();
+        show("loading");
+        status("Enviando imagen y solicitando GPU...");
+        let i = 0;
+        lm.textContent = msgs[0]!;
+        const t = window.setInterval(() => {
+          i = Math.min(i + 1, msgs.length - 1);
+          lm.textContent = msgs[i]!;
+        }, 9000);
         try {
           const fd = new FormData();
           fd.append("image", file, file.name);
-          fd.append("params", JSON.stringify({ prompt, steps: +st.value }));
+          fd.append("params", JSON.stringify({ prompt, steps: Number(st.value) }));
           const res = await fetch(`${W.replace(/\/$/, "")}/generate`, { method: "POST", body: fd });
           if (!res.ok || !res.body) throw new Error(await errMsg(res));
           const url = await readSSE(res.body);
-          vid.pause(); vid.src = url; vid.load();
-          dl.href = url; dl.download = `privdark-${Date.now()}.mp4`;
-          show("ready"); status("Generación completada.", "success"); addHist(url);
-        } catch (e) {
-          status(`No se pudo generar: ${e?.message || e}`, "error"); show("empty");
+          vid.pause();
+          vid.src = url;
+          vid.load();
+          dl.href = url;
+          dl.download = `privdark-${Date.now()}.mp4`;
+          show("ready");
+          status("Generación completada.", "success");
+          addHist(url);
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          status(`No se pudo generar: ${msg}`, "error");
+          show("empty");
         } finally {
-          clearInterval(t); busy = false; sp.classList.add("hidden"); bl.textContent = "Generar vídeo"; ready();
+          clearInterval(t);
+          busy = false;
+          sp.classList.add("hidden");
+          bl.textContent = "Generar vídeo";
+          ready();
         }
       };
 
-      show("empty"); ready();
+      show("empty");
+      ready();
     </script>
   </body>
 </html>
