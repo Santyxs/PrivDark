@@ -124,7 +124,7 @@ const VIDEO_MODELS: Record<string, { readonly label: string; readonly space: str
   ltx25: { label: "LTX-2.5", space: "Lightricks/LTX-2.5" },
   cogvideox: { label: "CogVideoX-5B", space: "zai-org/CogVideoX-5B-Space" },
   hunyuan15: { label: "HunyuanVideo 1.5", space: "multimodalart/Hunyuan-Video-1-5" },
-  animatediff: { label: "AnimateDiff-Lightning", space: "ByteDance/AnimateDiff-Lightning" },
+  animatediff: { label: "AnimateDiff-Lightning", space: "AI-Platform/Mochi_1_Video" },
   longcat: { label: "LongCat-Video", space: "multimodalart/LongCat-Video" },
   minimaxh3: { label: "MiniMax H3", space: "multimodalart/minimax-h3" },
   minimaxh3turbo: { label: "MiniMax H3 Turbo", space: "akhaliq/MiniMax-H3-Turbo-Lora" },
@@ -136,8 +136,19 @@ async function generateWithDynamicSpace(
   model: { readonly label: string; readonly space: string }, env: Env,
 ): Promise<Response> {
   const spaceBase = spaceUrl(model.space);
-  const apiInfo = await fetchSpaceApiInfo(spaceBase, env);
-  const endpoint = chooseVideoEndpoint(apiInfo);
+  let apiInfo: Record<string, unknown>;
+  try {
+    apiInfo = await fetchSpaceApiInfo(spaceBase, env);
+  } catch (error) {
+    apiInfo = knownSpaceApiFallback(model.space);
+    if (!Object.keys(apiInfo).length) throw error;
+  }
+  const detectedEndpoint = chooseVideoEndpoint(apiInfo);
+  const endpoint = model.space === "multimodalart/LongCat-Video"
+    ? (findNamedEndpoint(apiInfo, "image_to_video") ?? detectedEndpoint)
+    : model.space === "HorseTheUnicorn/chvrch-tv-mochi-demo"
+      ? (findNamedEndpoint(apiInfo, "predict") ?? detectedEndpoint)
+      : detectedEndpoint;
   if (!endpoint) throw new HuggingFaceError(`${model.label}: no se encontró un endpoint de generación de vídeo.`);
   let imageData: Record<string, unknown> | null = null;
   if (endpoint.imageIndex >= 0) {
@@ -173,6 +184,9 @@ async function generateWithDynamicSpace(
   }
   if (!submitResponse.ok) {
     const detail = await readResponseDetail(submitResponse);
+    if (/join the queue|queue\/join|does not accept direct http post/i.test(detail)) {
+      throw new HuggingFaceError(`${model.label}: este Space requiere el protocolo WebSocket de cola de Gradio y no admite la llamada HTTP directa que usa PrivDark.`, 502);
+    }
     throw new HuggingFaceError(buildHuggingFaceError(`iniciar ${model.label}`, detail, submitResponse.status), clientStatus(submitResponse.status));
   }
   const payload: unknown = await submitResponse.json().catch(() => null);
@@ -195,12 +209,72 @@ interface GradioEndpoint {
   readonly imageIndex: number;
 }
 
+function knownSpaceApiFallback(spaceId: string): Record<string, unknown> {
+  const endpoint: Record<string, unknown> = {};
+  const parameter = (name: string, type: string, defaultValue?: unknown, choices?: unknown[]) => ({
+    parameter_name: name, label: name, parameter_type: { type, ...(choices ? { choices } : {}) }, default: defaultValue,
+  });
+  if (spaceId === "Lightricks/LTX-2.5") {
+    endpoint.run = { parameters: [
+      parameter("prompt", "string"), parameter("image_path", "image", null),
+      parameter("height", "number", 832), parameter("width", "number", 1472),
+      parameter("duration_s", "number", 2), parameter("seed", "number", 42),
+      parameter("decoder", "string", "conv", ["conv", "diffusion"]),
+      parameter("auto_len", "boolean", false), parameter("randomize_seed", "boolean", false),
+      parameter("do_enhance", "boolean", false),
+    ] };
+  } else if (spaceId === "multimodalart/LongCat-Video") {
+    endpoint.image_to_video = { parameters: [
+      parameter("image", "image"), parameter("prompt", "string"),
+      parameter("negative_prompt", "string", "ugly, blurry, low quality, static, subtitles, watermark"),
+      parameter("resolution", "string", "480p", ["480p", "720p"]), parameter("seed", "number", 42),
+      parameter("use_distill", "boolean", true), parameter("use_refine", "boolean", false),
+    ] };
+  } else if (spaceId === "HorseTheUnicorn/chvrch-tv-mochi-demo") {
+    endpoint.predict = { parameters: [parameter("prompt", "string")] };
+  } else if (spaceId === "AI-Platform/Mochi_1_Video") {
+    endpoint.instant_video = { parameters: [
+      parameter("prompt", "string"), parameter("base", "string", "Realistic", ["Cartoon", "Realistic", "3d", "Anime"]),
+      parameter("motion", "string", "guoyww/animatediff-motion-lora-zoom-in", ["", "guoyww/animatediff-motion-lora-zoom-in"]),
+      parameter("step", "number", 4, [1, 2, 4, 8]),
+    ] };
+  }
+  return Object.keys(endpoint).length ? { named_endpoints: endpoint } : {};
+}
+
 async function fetchSpaceApiInfo(spaceBase: string, env: Env): Promise<Record<string, unknown>> {
   for (const route of ["/gradio_api/info", "/info"]) {
     const response = await fetch(`${spaceBase}${route}`, { headers: hfHeaders(env) });
     if (!response.ok) continue;
     const payload: unknown = await response.json().catch(() => null);
     if (isRecord(payload) && isRecord(payload.named_endpoints)) return payload;
+  }
+
+  // Some Spaces expose endpoint descriptions only through OpenAPI.
+  const openApiResponse = await fetch(`${spaceBase}/gradio_api/openapi.json`, { headers: hfHeaders(env) });
+  if (openApiResponse.ok) {
+    const spec: unknown = await openApiResponse.json().catch(() => null);
+    if (isRecord(spec) && isRecord(spec.paths)) {
+      const namedEndpoints: Record<string, unknown> = {};
+      for (const [route, methods] of Object.entries(spec.paths)) {
+        if (!isRecord(methods)) continue;
+        const post = methods.post;
+        if (!isRecord(post)) continue;
+        const apiName = route.split("/").filter(Boolean).pop() ?? "predict";
+        const requestBody = isRecord(post.requestBody) ? post.requestBody : {};
+        const content = isRecord(requestBody.content) ? requestBody.content : {};
+        const schema = isRecord(content["application/json"]) && isRecord((content["application/json"] as Record<string, unknown>).schema)
+          ? (content["application/json"] as Record<string, unknown>).schema as Record<string, unknown>
+          : {};
+        const properties = isRecord(schema.properties) ? schema.properties : {};
+        const parameters = Object.entries(properties).map(([name, value]) => {
+          const property = isRecord(value) ? value : {};
+          return { parameter_name: name, label: name, parameter_type: property, default: property.default };
+        });
+        namedEndpoints[apiName] = { parameters };
+      }
+      if (Object.keys(namedEndpoints).length) return { named_endpoints: namedEndpoints };
+    }
   }
 
   // Gradio 5/6 config can still describe API events even when the legacy info
@@ -231,6 +305,15 @@ async function fetchSpaceApiInfo(spaceBase: string, env: Env): Promise<Record<st
   throw new HuggingFaceError("No se pudo leer la API Gradio del Space. Se intentaron los endpoints info y config; puede estar apagado, privado o no exponer una API compatible.");
 }
 
+function findNamedEndpoint(info: Record<string, unknown>, wantedName: string): GradioEndpoint | null {
+  const named = info.named_endpoints;
+  if (!isRecord(named)) return null;
+  const value = named[wantedName];
+  if (!isRecord(value) || !Array.isArray(value.parameters)) return null;
+  const parameters = value.parameters.filter(isRecord) as GradioParameter[];
+  return { apiName: wantedName, parameters, imageIndex: parameters.findIndex(isImageParameter) };
+}
+
 function chooseVideoEndpoint(info: Record<string, unknown>): GradioEndpoint | null {
   const named = info.named_endpoints;
   if (!isRecord(named)) return null;
@@ -246,7 +329,9 @@ function chooseVideoEndpoint(info: Record<string, unknown>): GradioEndpoint | nu
     else if (/prompt|text|description|instruction/.test(parameterNames)) textCandidates.push(candidate);
   }
   const preferred = [...imageCandidates, ...textCandidates];
-  return preferred.find((candidate) => /video|generate|predict|animate|inference/.test(candidate.apiName.toLowerCase())) ?? preferred[0] ?? null;
+  return preferred.find((candidate) => /image.?to.?video|i2v|animate|video.?generate/.test(candidate.apiName.toLowerCase()))
+    ?? preferred.find((candidate) => /video|generate|predict|animate|inference/.test(candidate.apiName.toLowerCase()))
+    ?? preferred[0] ?? null;
 }
 
 function parameterName(parameter: GradioParameter): string {
@@ -269,6 +354,8 @@ function mapParameterValue(parameter: GradioParameter, prompt: string, steps: nu
   const defaultValue = parameterDefault(parameter);
   if (/negative.?prompt/.test(name)) return DEFAULT_NEGATIVE_PROMPT;
   if (/prompt|description|instruction|text/.test(name)) return prompt;
+  if (/base.?model/.test(name)) return defaultValue ?? firstChoice(parameter) ?? "Realistic";
+  if (/motion/.test(name)) return defaultValue ?? firstChoice(parameter) ?? "";
   if (/duration|seconds|length|video.?length/.test(name)) return duration;
   if (/frames|num_frames|frame_count/.test(name)) return Math.max(9, Math.round(duration * 8) + 1);
   if (/fps|frame.?rate/.test(name)) return 8;
@@ -557,9 +644,13 @@ function findVideoOutput(value: unknown): string | null {
     return null;
   }
   if (!isRecord(value)) return null;
-  for (const key of ["url", "path"]) {
+  for (const key of ["url", "path", "video", "file", "value"] ) {
     const field = value[key];
-    if (typeof field === "string" && /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i.test(field)) return field;
+    if (typeof field === "string" && /(?:\.(?:mp4|webm|mov|m4v)(?:$|[?#])|^https?:\/\/[^\s]+(?:video|file))/i.test(field)) return field;
+    if (isRecord(field)) {
+      const nested = findVideoOutput(field);
+      if (nested) return nested;
+    }
   }
   for (const [key, child] of Object.entries(value)) {
     if (key !== "url" && key !== "path") {
