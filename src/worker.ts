@@ -16,8 +16,12 @@ export interface Env {
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_PROMPT_LENGTH = 1200;
-const VIDEO_DURATION_SECONDS = 10;
-const INFERENCE_STEPS = 3;
+const DEFAULT_DURATION = 5;
+const MIN_DURATION = 1;
+const MAX_DURATION = 10;
+const DEFAULT_STEPS = 3;
+const MIN_STEPS = 3;
+const MAX_STEPS = 8;
 const DEFAULT_NEGATIVE_PROMPT =
   "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, " +
   "最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, " +
@@ -27,6 +31,7 @@ const DEFAULT_NEGATIVE_PROMPT =
 interface UserParams {
   prompt?: string;
   steps?: number;
+  duration?: number;
 }
 
 export default {
@@ -90,9 +95,10 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     return jsonResponse({ error: `El texto no puede superar los ${MAX_PROMPT_LENGTH} caracteres.` }, 400);
   }
 
-  const steps = clampInt(params.steps ?? INFERENCE_STEPS, 3, 4);
+  const steps = clampInt(params.steps ?? DEFAULT_STEPS, MIN_STEPS, MAX_STEPS);
+  const duration = clampInt(params.duration ?? DEFAULT_DURATION, MIN_DURATION, MAX_DURATION);
   const imagePath = await uploadImageToSpace(imagePart, env);
-  const eventId = await submitJob(imagePath, imagePart.name, prompt, steps, env);
+  const eventId = await submitJob(imagePath, imagePart.name, prompt, steps, duration, env);
 
   const upstream = await fetch(
     `${env.HF_SPACE_BASE}/gradio_api/call/${env.HF_FN_NAME}/${encodeURIComponent(eventId)}`,
@@ -144,6 +150,7 @@ async function submitJob(
   originalName: string,
   prompt: string,
   steps: number,
+  duration: number,
   env: Env,
 ): Promise<string> {
   const inputImage = {
@@ -155,24 +162,24 @@ async function submitJob(
     meta: { _type: "gradio.FileData" },
   };
 
-  // This order mirrors the upstream Space's current `ui_inputs` array.
+  // Order mirrors the upstream Space's `ui_inputs` array.
   const data = [
     inputImage,
-    null,                         // last_image
+    null, // last_image
     prompt,
     steps,
     DEFAULT_NEGATIVE_PROMPT,
-    VIDEO_DURATION_SECONDS,
-    1,                            // guidance_scale
-    1,                            // guidance_scale_2
-    42,                           // seed (randomized below)
-    true,                         // randomize_seed
-    6,                            // video quality
-    "UniPCMultistep",             // scheduler
-    3.0,                          // flow_shift
-    16,                           // native FPS, no interpolation overhead
-    false,                        // safe_mode
-    true,                         // return the video component
+    duration,
+    1, // guidance_scale
+    1, // guidance_scale_2
+    42, // seed (randomized by flag below)
+    true, // randomize_seed
+    6, // video quality
+    "UniPCMultistep", // scheduler
+    3.0, // flow_shift
+    16, // native FPS
+    false, // safe_mode
+    true, // return video component
   ];
 
   const response = await fetch(`${env.HF_SPACE_BASE}/gradio_api/call/${env.HF_FN_NAME}`, {
