@@ -4,12 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
-    "worker:dev": "wrangler dev",
-    "worker:deploy": "wrangler deploy",
-    "worker:types": "wrangler types"
+    "worker:deploy": "wrangler deploy"
   },
   "dependencies": {
     "astro": "~4.16.0",

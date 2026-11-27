@@ -1,6 +1,9 @@
 /** Client-side interaction for the PrivDark studio. */
 
-const WORKER_URL = import.meta.env.PUBLIC_WORKER_URL || "http://localhost:8787";
+const WORKER_URL = import.meta.env.PUBLIC_WORKER_URL;
+if (!WORKER_URL) {
+  throw new Error("PUBLIC_WORKER_URL no está definida. Configúrala en el entorno de deploy.");
+}
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_PROMPT_LENGTH = 1200;
 const HF_SPACE_BASE = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
