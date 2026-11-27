@@ -153,6 +153,24 @@ async function generateWithDynamicSpace(
     headers: hfHeaders(env, { "Content-Type": "application/json" }),
     body: JSON.stringify({ data }),
   });
+  if (submitResponse.status === 404) {
+    // Older Gradio Spaces (notably Gradio 4.x) expose /run/{api_name} instead of
+    // the newer /gradio_api/call/{api_name} queue API.
+    const legacyResponse = await fetch(`${spaceBase}/run/${encodeURIComponent(apiName)}`, {
+      method: "POST",
+      headers: hfHeaders(env, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ data }),
+    });
+    if (legacyResponse.ok) {
+      const legacyPayload: unknown = await legacyResponse.json().catch(() => null);
+      if (isRecord(legacyPayload) && Array.isArray(legacyPayload.data)) {
+        return responseFromLegacyGradioResult(legacyPayload.data, spaceBase);
+      }
+      throw new HuggingFaceError(`${model.label}: Gradio antiguo devolvió una respuesta inesperada.`);
+    }
+    const detail = await readResponseDetail(legacyResponse);
+    throw new HuggingFaceError(buildHuggingFaceError(`iniciar ${model.label}`, detail, legacyResponse.status), clientStatus(legacyResponse.status));
+  }
   if (!submitResponse.ok) {
     const detail = await readResponseDetail(submitResponse);
     throw new HuggingFaceError(buildHuggingFaceError(`iniciar ${model.label}`, detail, submitResponse.status), clientStatus(submitResponse.status));
@@ -184,7 +202,33 @@ async function fetchSpaceApiInfo(spaceBase: string, env: Env): Promise<Record<st
     const payload: unknown = await response.json().catch(() => null);
     if (isRecord(payload) && isRecord(payload.named_endpoints)) return payload;
   }
-  throw new HuggingFaceError("No se pudo leer la API Gradio del Space. Puede estar apagado, privado o ser incompatible.");
+
+  // Gradio 5/6 config can still describe API events even when the legacy info
+  // endpoint is absent or has a different schema.
+  const configResponse = await fetch(`${spaceBase}/config`, { headers: hfHeaders(env) });
+  if (configResponse.ok) {
+    const config: unknown = await configResponse.json().catch(() => null);
+    if (isRecord(config) && Array.isArray(config.dependencies) && Array.isArray(config.components)) {
+      const components = new Map<number, Record<string, unknown>>();
+      for (const component of config.components) {
+        if (isRecord(component) && typeof component.id === "number") components.set(component.id, component);
+      }
+      const namedEndpoints: Record<string, unknown> = {};
+      for (const dependency of config.dependencies) {
+        if (!isRecord(dependency) || typeof dependency.api_name !== "string" || !Array.isArray(dependency.inputs)) continue;
+        const parameters = dependency.inputs.map((inputId) => {
+          const component = typeof inputId === "number" ? components.get(inputId) : undefined;
+          const props = component && isRecord(component.props) ? component.props : {};
+          const componentType = typeof component?.type === "string" ? component.type : "";
+          const label = typeof props.label === "string" ? props.label : componentType;
+          return { parameter_name: label, label, parameter_type: { type: componentType }, default: props.value };
+        });
+        namedEndpoints[dependency.api_name] = { parameters };
+      }
+      if (Object.keys(namedEndpoints).length) return { named_endpoints: namedEndpoints };
+    }
+  }
+  throw new HuggingFaceError("No se pudo leer la API Gradio del Space. Se intentaron los endpoints info y config; puede estar apagado, privado o no exponer una API compatible.");
 }
 
 function chooseVideoEndpoint(info: Record<string, unknown>): GradioEndpoint | null {
@@ -256,7 +300,15 @@ function createGradioFileData(path: string, name: string, size: number, mimeType
 function spaceUrl(spaceId: string): string {
   const [owner, name] = spaceId.split("/");
   if (!owner || !name) throw new Error("Identificador de Space no válido.");
-  return `https://${owner.toLowerCase()}-${name.toLowerCase().replace(/_/g, "-")}.hf.space`;
+  // HF's generated Space hostname normalizes dots, underscores and spaces to hyphens.
+  const slug = `${owner}-${name}`.toLowerCase().replace(/[._\s]+/g, "-").replace(/-+/g, "-");
+  return `https://${slug}.hf.space`;
+}
+
+function responseFromLegacyGradioResult(data: unknown[], spaceBase: string): Response {
+  const rewritten = data.map((item) => rewriteVideoFileValue(item, spaceBase));
+  const body = `event: complete\ndata: ${JSON.stringify(rewritten)}\n\n`;
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache" } });
 }
 async function streamJobResult(spaceBase: string, functionName: string, eventId: string, env: Env): Promise<Response> {
   const upstream = await fetch(`${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}/${encodeURIComponent(eventId)}`, {
