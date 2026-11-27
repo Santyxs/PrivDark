@@ -46,16 +46,25 @@ const baseUrl = import.meta.env.BASE_URL;
           <h1 id="studio-title">Tus imágenes, <span>en movimiento.</span></h1>
           <p class="hero-description">Dale vida a una fotografía con movimiento, cámara y expresión. Tu próximo vídeo empieza aquí.</p>
         </div>
-        <div class="hero-note">
-          <span class="hero-note-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none"><path d="M7.5 10V7.5a4.5 4.5 0 0 1 9 0V10M6.5 10h11A1.5 1.5 0 0 1 19 11.5v7A1.5 1.5 0 0 1 17.5 20h-11A1.5 1.5 0 0 1 5 18.5v-7A1.5 1.5 0 0 1 6.5 10Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 14v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          </span>
-          <span><strong>Tu espacio, a tu ritmo</strong><small>Sin galería pública ni perfiles compartidos</small></span>
-        </div>
       </section>
 
       <div class="studio-shell">
         <section class="studio-card stack" aria-label="Controles de generación">
+          <div class="param-control model-control">
+            <label class="param-label" for="model-select"><span>Modelo de vídeo</span></label>
+            <select id="model-select" data-model class="model-select">
+              <option value="wan22">Wan 2.2</option>
+              <option value="ltx23">LTX-2.3</option>
+              <option value="ltx25">LTX-2.5</option>
+              <option value="cogvideox">CogVideoX-5B</option>
+              <option value="hunyuan15">HunyuanVideo 1.5</option>
+              <option value="animatediff">AnimateDiff-Lightning</option>
+              <option value="longcat">LongCat-Video</option>
+              <option value="minimaxh3">MiniMax H3</option>
+              <option value="minimaxh3turbo">MiniMax H3 Turbo</option>
+              <option value="mochi">Mochi Video</option>
+            </select>
+          </div>
           <div class="section-heading">
             <div class="section-number" aria-hidden="true">01</div>
             <div><h2>Imagen</h2><p>PNG, JPG o WEBP · máx. 8 MB</p></div>
@@ -149,7 +158,6 @@ const baseUrl = import.meta.env.BASE_URL;
           </div>
         </section>
       </div>
-      <footer class="studio-footer"><span>PRIVDARK STUDIO</span><span>Hecho para crear en privado.</span></footer>
     </main>
 
     <script>
@@ -179,6 +187,7 @@ const baseUrl = import.meta.env.BASE_URL;
       const preview = q<HTMLImageElement>("[data-dropzone-preview]");
       const promptInput = q<HTMLTextAreaElement>("[data-prompt]");
       const promptCount = q<HTMLElement>("[data-prompt-count]");
+      const modelInput = q<HTMLSelectElement>("[data-model]");
       const stepsInput = q<HTMLInputElement>("[data-steps]");
       const stepsValue = q<HTMLElement>("[data-steps-value]");
       const durationInput = q<HTMLInputElement>("[data-duration]");
@@ -192,7 +201,14 @@ const baseUrl = import.meta.env.BASE_URL;
       const loadingResult = q<HTMLElement>("[data-result-loading]");
       const loadingMessage = q<HTMLElement>("[data-loading-message]");
       const resultVideo = q<HTMLVideoElement>("[data-result-video]");
+      const resultFrame = q<HTMLElement>(".result-frame");
       const downloadLink = q<HTMLAnchorElement>("[data-download]");
+
+      resultVideo.addEventListener("loadedmetadata", () => {
+        if (resultVideo.videoWidth > 0 && resultVideo.videoHeight > 0) {
+          resultFrame.style.aspectRatio = `${resultVideo.videoWidth} / ${resultVideo.videoHeight}`;
+        }
+      });
       const historyWrap = q<HTMLElement>("[data-history-wrap]");
       const historyList = q<HTMLUListElement>("[data-history]");
 
@@ -549,6 +565,7 @@ const baseUrl = import.meta.env.BASE_URL;
           form.append("image", selectedFile, selectedFile.name);
           form.append("params", JSON.stringify({
             prompt,
+            model: modelInput.value,
             steps: Number(stepsInput.value),
             duration: Number(durationInput.value),
           }));

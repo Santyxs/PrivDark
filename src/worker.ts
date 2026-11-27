@@ -84,89 +84,196 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 async function handleGenerate(request: Request, env: Env): Promise<Response> {
-  const spaceBase = getSpaceBase(env);
-  const functionName = env.HF_FN_NAME?.trim();
-  if (!functionName) throw new Error("Falta configurar HF_FN_NAME en el Worker.");
-
   let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return jsonResponse(
-      { error: "La petición debe enviarse como multipart/form-data (imagen + parámetros)." },
-      400,
-    );
-  }
+  try { form = await request.formData(); }
+  catch { return jsonResponse({ error: "La petición debe enviarse como multipart/form-data (imagen + parámetros)." }, 400); }
 
   const image = form.get("image");
-  if (!(image instanceof File)) {
-    return jsonResponse({ error: "Falta la imagen. Sube un archivo PNG, JPG o WEBP." }, 400);
-  }
-  if (image.size === 0) {
-    return jsonResponse({ error: "El archivo de imagen está vacío. Elige otra imagen." }, 400);
-  }
-  if (image.size > MAX_IMAGE_BYTES) {
-    return jsonResponse({ error: "La imagen pesa más de 8 MB. Elige una más ligera." }, 413);
-  }
-  if (!(await isSupportedImage(image))) {
-    return jsonResponse({ error: "Formato de imagen no válido. Solo se admiten PNG, JPG y WEBP." }, 415);
-  }
+  if (!(image instanceof File)) return jsonResponse({ error: "Falta la imagen. Sube un archivo PNG, JPG o WEBP." }, 400);
+  if (!image.size) return jsonResponse({ error: "El archivo de imagen está vacío. Elige otra imagen." }, 400);
+  if (image.size > MAX_IMAGE_BYTES) return jsonResponse({ error: "La imagen pesa más de 8 MB. Elige una más ligera." }, 413);
+  if (!(await isSupportedImage(image))) return jsonResponse({ error: "Formato de imagen no válido. Solo se admiten PNG, JPG y WEBP." }, 415);
 
   const rawParams = form.get("params");
   const parsedParams = typeof rawParams === "string" ? safeJsonParse(rawParams) : null;
   const params = isRecord(parsedParams) ? parsedParams : {};
   const prompt = typeof params.prompt === "string" ? params.prompt.trim() : "";
+  if (!prompt) return jsonResponse({ error: "Falta el prompt. Describe el movimiento que debe hacer el vídeo." }, 400);
+  if (prompt.length > MAX_PROMPT_LENGTH) return jsonResponse({ error: `El prompt es demasiado largo (máximo ${MAX_PROMPT_LENGTH} caracteres). Acórtalo e inténtalo de nuevo.` }, 400);
 
-  if (!prompt) {
-    return jsonResponse({ error: "Falta el prompt. Describe el movimiento que debe hacer el vídeo." }, 400);
-  }
-  if (prompt.length > MAX_PROMPT_LENGTH) {
-    return jsonResponse(
-      { error: `El prompt es demasiado largo (máximo ${MAX_PROMPT_LENGTH} caracteres). Acórtalo e inténtalo de nuevo.` },
-      400,
-    );
-  }
-
+  const modelId = typeof params.model === "string" ? params.model : "wan22";
   const steps = clampInt(params.steps, DEFAULT_STEPS, MIN_STEPS, MAX_STEPS);
   const duration = clampFloat(params.duration, DEFAULT_DURATION, MIN_DURATION, MAX_DURATION);
 
-  // Do not retry: a duplicate submission can consume additional GPU quota.
-  const imagePath = await uploadImageToSpace(image, spaceBase, env);
-  const eventId = await submitJob(imagePath, image.name, prompt, steps, duration, spaceBase, functionName, env);
-  const upstream = await fetch(
-    `${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}/${encodeURIComponent(eventId)}`,
-    { headers: hfHeaders(env, { Accept: "text/event-stream" }) },
-  );
-
-  if (!upstream.ok || !upstream.body) {
-    const detail = await readResponseDetail(upstream);
-    throw new HuggingFaceError(
-      buildHuggingFaceError("recibir el vídeo", detail, upstream.status),
-      clientStatus(upstream.status),
-    );
+  if (modelId === "wan22") {
+    const spaceBase = getSpaceBase(env);
+    const functionName = env.HF_FN_NAME?.trim();
+    if (!functionName) throw new Error("Falta configurar HF_FN_NAME en el Worker.");
+    const imagePath = await uploadImageToSpace(image, spaceBase, env);
+    const eventId = await submitJob(imagePath, image.name, prompt, steps, duration, spaceBase, functionName, env);
+    return streamJobResult(spaceBase, functionName, eventId, env);
   }
 
+  const selectedModel = VIDEO_MODELS[modelId];
+  if (!selectedModel) return jsonResponse({ error: "Modelo de vídeo desconocido." }, 400);
+  return generateWithDynamicSpace(image, prompt, steps, duration, selectedModel, env);
+}
+
+const VIDEO_MODELS: Record<string, { readonly label: string; readonly space: string }> = {
+  ltx23: { label: "LTX-2.3", space: "Lightricks/LTX-2-3" },
+  ltx25: { label: "LTX-2.5", space: "Lightricks/LTX-2.5" },
+  cogvideox: { label: "CogVideoX-5B", space: "zai-org/CogVideoX-5B-Space" },
+  hunyuan15: { label: "HunyuanVideo 1.5", space: "multimodalart/Hunyuan-Video-1-5" },
+  animatediff: { label: "AnimateDiff-Lightning", space: "ByteDance/AnimateDiff-Lightning" },
+  longcat: { label: "LongCat-Video", space: "multimodalart/LongCat-Video" },
+  minimaxh3: { label: "MiniMax H3", space: "multimodalart/minimax-h3" },
+  minimaxh3turbo: { label: "MiniMax H3 Turbo", space: "akhaliq/MiniMax-H3-Turbo-Lora" },
+  mochi: { label: "Mochi Video", space: "HorseTheUnicorn/chvrch-tv-mochi-demo" },
+};
+
+async function generateWithDynamicSpace(
+  image: File, prompt: string, steps: number, duration: number,
+  model: { readonly label: string; readonly space: string }, env: Env,
+): Promise<Response> {
+  const spaceBase = spaceUrl(model.space);
+  const apiInfo = await fetchSpaceApiInfo(spaceBase, env);
+  const endpoint = chooseVideoEndpoint(apiInfo);
+  if (!endpoint) throw new HuggingFaceError(`${model.label}: no se encontró un endpoint de generación de vídeo.`);
+  let imageData: Record<string, unknown> | null = null;
+  if (endpoint.imageIndex >= 0) {
+    const imagePath = await uploadImageToSpace(image, spaceBase, env);
+    imageData = createGradioFileData(imagePath, image.name, image.size, image.type, spaceBase);
+  }
+  const data = endpoint.parameters.map((parameter, index) =>
+    index === endpoint.imageIndex && imageData ? imageData : mapParameterValue(parameter, prompt, steps, duration));
+
+  const apiName = endpoint.apiName.replace(/^\/+/, "");
+  const submitResponse = await fetch(`${spaceBase}/gradio_api/call/${encodeURIComponent(apiName)}`, {
+    method: "POST",
+    headers: hfHeaders(env, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ data }),
+  });
+  if (!submitResponse.ok) {
+    const detail = await readResponseDetail(submitResponse);
+    throw new HuggingFaceError(buildHuggingFaceError(`iniciar ${model.label}`, detail, submitResponse.status), clientStatus(submitResponse.status));
+  }
+  const payload: unknown = await submitResponse.json().catch(() => null);
+  if (!isRecord(payload) || typeof payload.event_id !== "string" || !payload.event_id) {
+    throw new HuggingFaceError(`${model.label}: Gradio no devolvió un identificador de trabajo. No se ha repetido la petición.`);
+  }
+  return streamJobResult(spaceBase, apiName, payload.event_id, env);
+}
+
+interface GradioParameter {
+  readonly label?: string;
+  readonly parameter_name?: string;
+  readonly parameter_type?: unknown;
+  readonly type?: unknown;
+  readonly default?: unknown;
+}
+interface GradioEndpoint {
+  readonly apiName: string;
+  readonly parameters: GradioParameter[];
+  readonly imageIndex: number;
+}
+
+async function fetchSpaceApiInfo(spaceBase: string, env: Env): Promise<Record<string, unknown>> {
+  for (const route of ["/gradio_api/info", "/info"]) {
+    const response = await fetch(`${spaceBase}${route}`, { headers: hfHeaders(env) });
+    if (!response.ok) continue;
+    const payload: unknown = await response.json().catch(() => null);
+    if (isRecord(payload) && isRecord(payload.named_endpoints)) return payload;
+  }
+  throw new HuggingFaceError("No se pudo leer la API Gradio del Space. Puede estar apagado, privado o ser incompatible.");
+}
+
+function chooseVideoEndpoint(info: Record<string, unknown>): GradioEndpoint | null {
+  const named = info.named_endpoints;
+  if (!isRecord(named)) return null;
+  const imageCandidates: GradioEndpoint[] = [];
+  const textCandidates: GradioEndpoint[] = [];
+  for (const [apiName, value] of Object.entries(named)) {
+    if (!isRecord(value) || !Array.isArray(value.parameters)) continue;
+    const parameters = value.parameters.filter(isRecord) as GradioParameter[];
+    const imageIndex = parameters.findIndex(isImageParameter);
+    const parameterNames = parameters.map(parameterName).join(" ").toLowerCase();
+    const candidate = { apiName, parameters, imageIndex };
+    if (imageIndex >= 0) imageCandidates.push(candidate);
+    else if (/prompt|text|description|instruction/.test(parameterNames)) textCandidates.push(candidate);
+  }
+  const preferred = [...imageCandidates, ...textCandidates];
+  return preferred.find((candidate) => /video|generate|predict|animate|inference/.test(candidate.apiName.toLowerCase())) ?? preferred[0] ?? null;
+}
+
+function parameterName(parameter: GradioParameter): string {
+  return `${parameter.parameter_name ?? ""} ${parameter.label ?? ""} ${parameterType(parameter)}`;
+}
+function parameterType(parameter: GradioParameter): string {
+  const raw = parameter.parameter_type ?? parameter.type;
+  if (typeof raw === "string") return raw;
+  if (isRecord(raw) && typeof raw.type === "string") return raw.type;
+  return "";
+}
+function isImageParameter(parameter: GradioParameter): boolean {
+  const name = parameterName(parameter).toLowerCase();
+  const type = parameterType(parameter).toLowerCase();
+  return /image|img|photo|frame|picture/.test(name) || /image|file/.test(type);
+}
+function mapParameterValue(parameter: GradioParameter, prompt: string, steps: number, duration: number): unknown {
+  const name = parameterName(parameter).toLowerCase();
+  const type = parameterType(parameter).toLowerCase();
+  const defaultValue = parameterDefault(parameter);
+  if (/negative.?prompt/.test(name)) return DEFAULT_NEGATIVE_PROMPT;
+  if (/prompt|description|instruction|text/.test(name)) return prompt;
+  if (/duration|seconds|length|video.?length/.test(name)) return duration;
+  if (/frames|num_frames|frame_count/.test(name)) return Math.max(9, Math.round(duration * 8) + 1);
+  if (/fps|frame.?rate/.test(name)) return 8;
+  if (/steps|inference.?steps/.test(name)) return steps;
+  if (/seed/.test(name)) return 42;
+  if (/guidance|cfg|scale/.test(name)) return 6;
+  if (/height/.test(name)) return typeof defaultValue === "number" ? defaultValue : 576;
+  if (/width/.test(name)) return typeof defaultValue === "number" ? defaultValue : 1024;
+  if (/resolution|size/.test(name)) return typeof defaultValue === "string" ? defaultValue : firstChoice(parameter) ?? "480p";
+  if (/random/.test(name)) return false;
+  if (/bool|checkbox/.test(type)) return typeof defaultValue === "boolean" ? defaultValue : false;
+  if (/number|slider|integer|float/.test(type)) return typeof defaultValue === "number" ? defaultValue : 0;
+  if (typeof defaultValue !== "undefined") return defaultValue;
+  return firstChoice(parameter);
+}
+function parameterDefault(parameter: GradioParameter): unknown {
+  if (typeof parameter.default !== "undefined") return parameter.default;
+  const schema = parameter.parameter_type;
+  return isRecord(schema) && typeof schema.default !== "undefined" ? schema.default : undefined;
+}
+function firstChoice(parameter: GradioParameter): unknown {
+  const schema = parameter.parameter_type;
+  return isRecord(schema) && Array.isArray(schema.choices) ? schema.choices[0] ?? null : null;
+}
+function createGradioFileData(path: string, name: string, size: number, mimeType: string, spaceBase: string): Record<string, unknown> {
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return { path, url: `${spaceBase}/gradio_api/file=${encoded}`, orig_name: safeFileName(name), size, mime_type: mimeType || null, meta: { _type: "gradio.FileData" } };
+}
+function spaceUrl(spaceId: string): string {
+  const [owner, name] = spaceId.split("/");
+  if (!owner || !name) throw new Error("Identificador de Space no válido.");
+  return `https://${owner.toLowerCase()}-${name.toLowerCase().replace(/_/g, "-")}.hf.space`;
+}
+async function streamJobResult(spaceBase: string, functionName: string, eventId: string, env: Env): Promise<Response> {
+  const upstream = await fetch(`${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}/${encodeURIComponent(eventId)}`, {
+    headers: hfHeaders(env, { Accept: "text/event-stream" }),
+  });
+  if (!upstream.ok || !upstream.body) {
+    const detail = await readResponseDetail(upstream);
+    throw new HuggingFaceError(buildHuggingFaceError("recibir el vídeo", detail, upstream.status), clientStatus(upstream.status));
+  }
   const contentType = upstream.headers.get("Content-Type") ?? "";
   if (!contentType.toLowerCase().includes("text/event-stream")) {
     const detail = await readResponseDetail(upstream);
-    throw new HuggingFaceError(
-      buildHuggingFaceError(
-        "recibir el vídeo",
-        detail || `Hugging Face devolvió un tipo de contenido inesperado (${contentType || "desconocido"}).`,
-        upstream.status,
-      ),
-      502,
-    );
+    throw new HuggingFaceError(buildHuggingFaceError("recibir el vídeo", detail || `Contenido inesperado (${contentType || "desconocido"}).`, upstream.status), 502);
   }
-
-  return new Response(forwardSseWithReadableErrors(upstream.body), {
+  return new Response(forwardSseWithReadableErrors(upstream.body, spaceBase), {
     status: 200,
-    headers: {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      "X-Accel-Buffering": "no",
-      "X-Content-Type-Options": "nosniff",
-    },
+    headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "X-Content-Type-Options": "nosniff" },
   });
 }
 
@@ -289,7 +396,7 @@ async function submitJob(
   return payload.event_id;
 }
 
-function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>, spaceBase: string): ReadableStream<Uint8Array> {
   const reader = source.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -316,7 +423,7 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
               const finalEvent = parseSseEvent(buffer);
               const output = finalEvent.event === "error"
                 ? encodeSseError(buildHuggingFaceError("generar el vídeo", extractSseError(finalEvent.data)))
-                : `${buffer}\n\n`;
+                : rewriteCompletedSse(buffer, spaceBase);
               controller.enqueue(encoder.encode(output));
             }
             controller.close();
@@ -345,7 +452,7 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
               return;
             }
 
-            controller.enqueue(encoder.encode(`${block}\n\n`));
+            controller.enqueue(encoder.encode(rewriteCompletedSse(block, spaceBase)));
             emitted = true;
           }
 
@@ -369,6 +476,73 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
       releaseReader();
     },
   });
+}
+
+
+function rewriteCompletedSse(block: string, spaceBase: string): string {
+  const event = parseSseEvent(block);
+  if (event.event !== "complete") return `${block}\n\n`;
+  const parsed = safeJsonParse(event.data);
+  if (!Array.isArray(parsed)) return `${block}\n\n`;
+
+  const video = findVideoOutput(parsed);
+  const eventName = block.split(/\r?\n/).find((line) => line.startsWith("event:")) ?? "event: complete";
+  if (!video) return `${eventName}\ndata: ${JSON.stringify(parsed.map((item) => rewriteVideoFileValue(item, spaceBase)))}\n\n`;
+  const url = resolveGradioFileUrl(video, spaceBase);
+  return `${eventName}\ndata: ${JSON.stringify([{ url, path: video, meta: { _type: "gradio.FileData" } }])}\n\n`;
+}
+
+function findVideoOutput(value: unknown): string | null {
+  if (typeof value === "string") {
+    if (/\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i.test(value)) return value;
+    return null;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findVideoOutput(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!isRecord(value)) return null;
+  for (const key of ["url", "path"]) {
+    const field = value[key];
+    if (typeof field === "string" && /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i.test(field)) return field;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (key !== "url" && key !== "path") {
+      const found = findVideoOutput(child);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function rewriteVideoFileValue(value: unknown, spaceBase: string): unknown {
+  if (typeof value === "string" && /\.(?:mp4|webm|mov|m4v)(?:$|[?#])/i.test(value)) {
+    return { url: resolveGradioFileUrl(value, spaceBase), path: value, meta: { _type: "gradio.FileData" } };
+  }
+  if (Array.isArray(value)) return value.map((child) => rewriteVideoFileValue(child, spaceBase));
+  if (!isRecord(value)) return value;
+  const clone: Record<string, unknown> = { ...value };
+  for (const key of ["url", "path"]) {
+    const field = clone[key];
+    if (typeof field === "string" && field && !(key === "url" && /^https?:\/\//i.test(field))) {
+      clone[key] = resolveGradioFileUrl(field, spaceBase);
+    }
+  }
+  for (const [key, child] of Object.entries(clone)) {
+    if (key !== "url" && key !== "path") clone[key] = rewriteVideoFileValue(child, spaceBase);
+  }
+  if (typeof clone.path === "string" && !clone.url) clone.url = clone.path;
+  return clone;
+}
+
+function resolveGradioFileUrl(path: string, spaceBase: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const clean = path.replace(/^\/+/, "").replace(/^gradio_api\/file=/, "").replace(/^file=/, "");
+  const encoded = clean.split("/").map(encodeURIComponent).join("/");
+  return `${spaceBase}/gradio_api/file=${encoded}`;
 }
 
 function parseSseEvent(block: string): ParsedSseEvent {
