@@ -6,7 +6,12 @@ export default defineConfig({
   site: process.env.PUBLIC_SITE_URL || "https://privdark.pages.dev",
   base: "/",
   publicDir: "assets",
-  integrations: [tailwind({ applyBaseStyles: false })],
+  integrations: [
+    tailwind({
+      applyBaseStyles: false,
+      configFile: "./tailwind.config.ts",
+    }),
+  ],
   vite: {
     resolve: {
       alias: {
