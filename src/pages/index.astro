@@ -58,13 +58,23 @@ const baseUrl = import.meta.env.BASE_URL;
             <div class="prompt-meta"><span></span><span data-prompt-count>0 / 1200</span></div>
           </div>
 
-          <details class="advanced-panel">
-            <summary><span>Pasos</span><span class="advanced-summary-meta"><span data-steps-value>3</span></span></summary>
-            <div class="advanced-content">
-              <input type="range" min="3" max="4" step="1" value="3" data-steps class="steps-range" aria-label="Pasos" />
-              <p class="help-text">3 = menos GPU · 4 = un poco más de detalle</p>
+          <div class="params">
+            <div class="param">
+              <div class="param-label">
+                <span>Duración</span>
+                <span class="param-value"><span data-duration-value>5</span> s</span>
+              </div>
+              <input type="range" min="1" max="10" step="1" value="5" data-duration class="steps-range" aria-label="Duración" />
             </div>
-          </details>
+            <div class="param">
+              <div class="param-label">
+                <span>Pasos</span>
+                <span class="param-value" data-steps-value>3</span>
+              </div>
+              <input type="range" min="3" max="8" step="1" value="3" data-steps class="steps-range" aria-label="Pasos" />
+            </div>
+            <p class="help-text">Más duración o pasos = más GPU y más tiempo de espera.</p>
+          </div>
 
           <div class="actions">
             <button data-generate class="btn-primary" disabled>
@@ -95,7 +105,7 @@ const baseUrl = import.meta.env.BASE_URL;
           </div>
 
           <div class="output-foot">
-            <p>MP4 · 10 s</p>
+            <p data-output-meta>MP4 · 5 s</p>
             <a data-download class="btn-ghost" download>Descargar</a>
           </div>
 
@@ -131,6 +141,9 @@ const baseUrl = import.meta.env.BASE_URL;
       const pc = q<HTMLElement>("[data-prompt-count]");
       const st = q<HTMLInputElement>("[data-steps]");
       const sv = q<HTMLElement>("[data-steps-value]");
+      const dur = q<HTMLInputElement>("[data-duration]");
+      const dv = q<HTMLElement>("[data-duration-value]");
+      const outMeta = q<HTMLElement>("[data-output-meta]");
       const btn = q<HTMLButtonElement>("[data-generate]");
       const bl = q<HTMLElement>("[data-button-label]");
       const sp = q<HTMLElement>("[data-spinner]");
@@ -208,6 +221,10 @@ const baseUrl = import.meta.env.BASE_URL;
       };
       st.oninput = () => {
         sv.textContent = st.value;
+      };
+      dur.oninput = () => {
+        dv.textContent = dur.value;
+        outMeta.textContent = `MP4 · ${dur.value} s`;
       };
 
       const videoUrl = (d: unknown): string | null => {
@@ -339,7 +356,10 @@ const baseUrl = import.meta.env.BASE_URL;
         try {
           const fd = new FormData();
           fd.append("image", file, file.name);
-          fd.append("params", JSON.stringify({ prompt, steps: Number(st.value) }));
+          fd.append(
+            "params",
+            JSON.stringify({ prompt, steps: Number(st.value), duration: Number(dur.value) }),
+          );
           const res = await fetch(`${W.replace(/\/$/, "")}/generate`, { method: "POST", body: fd });
           if (!res.ok || !res.body) throw new Error(await errMsg(res));
           const url = await readSSE(res.body);
