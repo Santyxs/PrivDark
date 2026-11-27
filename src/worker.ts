@@ -96,7 +96,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
   }
 
   const steps = clampInt(params.steps ?? DEFAULT_STEPS, MIN_STEPS, MAX_STEPS);
-  const duration = clampInt(params.duration ?? DEFAULT_DURATION, MIN_DURATION, MAX_DURATION);
+  const duration = clampFloat(params.duration ?? DEFAULT_DURATION, MIN_DURATION, MAX_DURATION, 1);
   const imagePath = await uploadImageToSpace(imagePart, env);
   const eventId = await submitJob(imagePath, imagePart.name, prompt, steps, duration, env);
 
@@ -250,6 +250,13 @@ async function readResponseDetail(response: Response): Promise<string> {
 function clampInt(value: number, minimum: number, maximum: number): number {
   if (!Number.isFinite(value)) return minimum;
   return Math.max(minimum, Math.min(maximum, Math.round(value)));
+}
+
+function clampFloat(value: number, minimum: number, maximum: number, decimals = 1): number {
+  if (!Number.isFinite(value)) return minimum;
+  const factor = 10 ** decimals;
+  const rounded = Math.round(value * factor) / factor;
+  return Math.max(minimum, Math.min(maximum, rounded));
 }
 
 function safeJsonParse(value: string): unknown {
