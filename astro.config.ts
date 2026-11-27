@@ -9,7 +9,6 @@ export default defineConfig({
   integrations: [
     tailwind({
       applyBaseStyles: false,
-      configFile: "./tailwind.config.ts",
     }),
   ],
   vite: {
