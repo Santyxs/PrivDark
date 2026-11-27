@@ -122,14 +122,14 @@ const baseUrl = import.meta.env.BASE_URL;
       type ResultState = "empty" | "loading" | "ready";
 
       const W = import.meta.env.PUBLIC_WORKER_URL as string | undefined;
-      if (!W) throw new Error("PUBLIC_WORKER_URL no definida");
+      if (!W) throw new Error("Falta PUBLIC_WORKER_URL en el build. Configura la URL del worker en Cloudflare Pages.");
       const MAX = 8 << 20;
       const PL = 500;
       const HF = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
 
       const q = <T extends Element>(s: string): T => {
         const el = document.querySelector<T>(s);
-        if (!el) throw new Error(`Falta: ${s}`);
+        if (!el) throw new Error(`Elemento no encontrado en la página: ${s}`);
         return el;
       };
 
@@ -178,8 +178,12 @@ const baseUrl = import.meta.env.BASE_URL;
 
       const accept = (f: File): void => {
         const ok = /image\/(png|jpeg|webp)/i.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name);
-        if (!ok) return status("Usa PNG, JPG o WEBP.", "error");
-        if (!f.size || f.size > MAX) return status(f.size ? "Máx. 8 MB." : "Archivo vacío.", "error");
+        if (!ok) return status("Formato no válido. Solo PNG, JPG o WEBP.", "error");
+        if (!f.size || f.size > MAX)
+          return status(
+            f.size ? "La imagen supera 8 MB. Elige una más ligera." : "El archivo está vacío. Elige otra imagen.",
+            "error",
+          );
         file = f;
         if (prev) URL.revokeObjectURL(prev);
         prev = URL.createObjectURL(f);
@@ -187,7 +191,7 @@ const baseUrl = import.meta.env.BASE_URL;
         dp.classList.add("show");
         de.classList.add("hide");
         ready();
-        status("Listo para generar.", "success");
+        status("Imagen cargada. Ya puedes generar.", "success");
       };
 
       fi.onchange = () => {
@@ -257,16 +261,16 @@ const baseUrl = import.meta.env.BASE_URL;
                 : p && typeof p === "object" && "message" in p && typeof (p as { message: unknown }).message === "string"
                   ? (p as { message: string }).message
                   : data;
-            throw new Error(msg);
+            throw new Error(msg || "Error del modelo en Hugging Face. Revisa el prompt o reintenta.");
           } catch (e) {
             if (e instanceof Error && e.message !== data) throw e;
-            throw new Error(data || "Error de Hugging Face");
+            throw new Error(data || "Error del modelo en Hugging Face. Revisa el prompt o reintenta.");
           }
         }
         if (ev !== "complete") return null;
         const p: unknown = JSON.parse(data);
         const u = videoUrl(Array.isArray(p) ? p[0] : null);
-        if (!u) throw new Error("No se recibió el vídeo");
+        if (!u) throw new Error("La generación terminó sin devolver un vídeo. Reintenta o baja duración/pasos.");
         return u;
       };
 
@@ -295,7 +299,7 @@ const baseUrl = import.meta.env.BASE_URL;
           await r.cancel().catch(() => undefined);
           r.releaseLock();
         }
-        throw new Error("Conexión cerrada sin vídeo");
+        throw new Error("La conexión se cerró antes de recibir el vídeo (timeout o Space caído). Reintenta.");
       };
 
       const errMsg = async (res: Response): Promise<string> => {
@@ -306,7 +310,8 @@ const baseUrl = import.meta.env.BASE_URL;
         } catch {
           /* ignore */
         }
-        return (await res.text().catch(() => "")) || `${res.status} ${res.statusText}`;
+        const body = (await res.text().catch(() => "")).trim();
+        return body || `El servidor respondió con error ${res.status} (${res.statusText || "sin detalle"}).`;
       };
 
       const setDownload = (url: string): void => {
@@ -314,7 +319,7 @@ const baseUrl = import.meta.env.BASE_URL;
           e.preventDefault();
           try {
             const res = await fetch(url);
-            if (!res.ok) throw new Error("fail");
+            if (!res.ok) throw new Error(`No se pudo descargar el MP4 (código ${res.status}).`);
             const blob = await res.blob();
             const obj = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -324,7 +329,13 @@ const baseUrl = import.meta.env.BASE_URL;
             a.click();
             a.remove();
             URL.revokeObjectURL(obj);
-          } catch {
+          } catch (err) {
+            status(
+              err instanceof Error
+                ? err.message
+                : "No se pudo descargar el vídeo. Se abrirá en una pestaña nueva.",
+              "error",
+            );
             window.open(url, "_blank", "noopener,noreferrer");
           }
         };
@@ -359,7 +370,14 @@ const baseUrl = import.meta.env.BASE_URL;
         hl.prepend(li);
       };
 
-      const msgs = ["Preparando...", "Esperando GPU...", "Cargando modelo...", "Generando frames...", "Montando MP4...", "Casi listo..."];
+      const msgs = [
+        "Subiendo imagen...",
+        "Esperando GPU en Hugging Face...",
+        "Cargando el modelo...",
+        "Generando fotogramas...",
+        "Montando el MP4...",
+        "Casi listo...",
+      ];
 
       btn.onclick = async () => {
         const prompt = pr.value.trim();
@@ -369,7 +387,7 @@ const baseUrl = import.meta.env.BASE_URL;
         bl.textContent = "Generando...";
         ready();
         show("loading");
-        status("Enviando...");
+        status("Enviando imagen y parámetros al worker...");
         let i = 0;
         lm.textContent = msgs[0]!;
         const t = window.setInterval(() => {
@@ -391,10 +409,10 @@ const baseUrl = import.meta.env.BASE_URL;
           vid.load();
           setDownload(url);
           show("ready");
-          status("Listo.", "success");
+          status("Vídeo generado. Ya puedes reproducirlo o descargarlo.", "success");
           addHist(url);
         } catch (e: unknown) {
-          status(e instanceof Error ? e.message : String(e), "error");
+          status(e instanceof Error ? e.message : `Error inesperado: ${String(e)}`, "error");
           show("empty");
         } finally {
           clearInterval(t);
