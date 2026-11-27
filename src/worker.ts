@@ -1,14 +1,9 @@
+/// <reference types="@cloudflare/workers-types" />
+
 /**
  * PrivDark API Worker.
- *
- * Receives an image and a motion prompt, submits the job to the public
- * Hugging Face Gradio Space, and forwards its SSE response to the browser.
- * Gradio error events are normalized so the frontend never displays "null"
- * when the upstream Space returns an empty error payload.
- *
- * The optional HF_TOKEN is stored as a Worker secret and is never exposed
- * in the static frontend bundle. Generation requests are never retried
- * automatically, avoiding accidental consumption of additional GPU quota.
+ * Receives an image and prompt, submits one Gradio job and streams its result.
+ * Generation requests are never retried automatically to protect GPU quota.
  */
 
 export interface Env {
@@ -20,13 +15,13 @@ export interface Env {
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_PROMPT_LENGTH = 500;
+const MAX_UPSTREAM_DETAIL_LENGTH = 700;
 const DEFAULT_DURATION = 5;
 const MIN_DURATION = 1;
 const MAX_DURATION = 10;
 const DEFAULT_STEPS = 3;
 const MIN_STEPS = 3;
 const MAX_STEPS = 8;
-const MAX_UPSTREAM_DETAIL_LENGTH = 700;
 
 const DEFAULT_NEGATIVE_PROMPT =
   "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, " +
@@ -36,49 +31,45 @@ const DEFAULT_NEGATIVE_PROMPT =
 
 const encoder = new TextEncoder();
 
-interface UserParams {
-  prompt?: string;
-  steps?: number;
-  duration?: number;
-}
-
 interface ParsedSseEvent {
-  event: string;
-  data: string;
+  readonly event: string;
+  readonly data: string;
 }
 
 class HuggingFaceError extends Error {
-  readonly statusCode: number;
-
-  constructor(message: string, statusCode = 502) {
+  constructor(
+    message: string,
+    readonly statusCode = 502,
+  ) {
     super(message);
     this.name = "HuggingFaceError";
-    this.statusCode = statusCode;
   }
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
-    const url = new URL(req.url);
-    const origin = req.headers.get("Origin") ?? "";
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    const origin = request.headers.get("Origin") ?? "";
 
-    if (req.method === "OPTIONS") {
+    if (request.method === "OPTIONS") {
       return withCors(new Response(null, { status: 204 }), origin, env);
     }
 
-    if (req.method === "GET" && url.pathname === "/health") {
+    if (request.method === "GET" && url.pathname === "/health") {
       return withCors(jsonResponse({ ok: true, service: "privdark-api" }), origin, env);
     }
 
-    if (req.method === "POST" && url.pathname === "/generate") {
+    if (request.method === "POST" && url.pathname === "/generate") {
+      const allowedOrigins = (env.ALLOWED_ORIGINS ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+      if (!origin || !allowedOrigins.includes(origin)) {
+        return withCors(jsonResponse({ error: "Origen no autorizado. Accede desde PrivDark." }, 403), origin, env);
+      }
       try {
-        const response = await handleGenerate(req, env);
-        return withCors(response, origin, env);
+        return withCors(await handleGenerate(request, env), origin, env);
       } catch (error: unknown) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Error inesperado al generar el vídeo. Inténtalo de nuevo.";
+        const message = error instanceof Error
+          ? error.message
+          : "Error inesperado al generar el vídeo. Inténtalo de nuevo.";
         const status = error instanceof HuggingFaceError ? error.statusCode : 502;
         return withCors(jsonResponse({ error: message }, status), origin, env);
       }
@@ -92,10 +83,14 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-async function handleGenerate(req: Request, env: Env): Promise<Response> {
+async function handleGenerate(request: Request, env: Env): Promise<Response> {
+  const spaceBase = getSpaceBase(env);
+  const functionName = env.HF_FN_NAME?.trim();
+  if (!functionName) throw new Error("Falta configurar HF_FN_NAME en el Worker.");
+
   let form: FormData;
   try {
-    form = await req.formData();
+    form = await request.formData();
   } catch {
     return jsonResponse(
       { error: "La petición debe enviarse como multipart/form-data (imagen + parámetros)." },
@@ -103,63 +98,44 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     );
   }
 
-  const imagePart = form.get("image");
-  const paramsRaw = form.get("params");
-
-  if (!(imagePart instanceof File)) {
+  const image = form.get("image");
+  if (!(image instanceof File)) {
     return jsonResponse({ error: "Falta la imagen. Sube un archivo PNG, JPG o WEBP." }, 400);
   }
-  if (imagePart.size === 0) {
-    return jsonResponse(
-      { error: "El archivo de imagen está vacío (0 bytes). Elige otra imagen." },
-      400,
-    );
+  if (image.size === 0) {
+    return jsonResponse({ error: "El archivo de imagen está vacío. Elige otra imagen." }, 400);
   }
-  if (imagePart.size > MAX_IMAGE_BYTES) {
-    return jsonResponse(
-      { error: "La imagen pesa más de 8 MB. Comprime o elige una más ligera." },
-      413,
-    );
+  if (image.size > MAX_IMAGE_BYTES) {
+    return jsonResponse({ error: "La imagen pesa más de 8 MB. Elige una más ligera." }, 413);
   }
-  if (!isSupportedImage(imagePart)) {
-    return jsonResponse(
-      { error: "Formato de imagen no válido. Solo se admiten PNG, JPG y WEBP." },
-      415,
-    );
+  if (!(await isSupportedImage(image))) {
+    return jsonResponse({ error: "Formato de imagen no válido. Solo se admiten PNG, JPG y WEBP." }, 415);
   }
 
-  const parsed = typeof paramsRaw === "string" ? safeJsonParse(paramsRaw) : null;
-  const params: UserParams = isRecord(parsed) ? (parsed as UserParams) : {};
+  const rawParams = form.get("params");
+  const parsedParams = typeof rawParams === "string" ? safeJsonParse(rawParams) : null;
+  const params = isRecord(parsedParams) ? parsedParams : {};
   const prompt = typeof params.prompt === "string" ? params.prompt.trim() : "";
 
   if (!prompt) {
-    return jsonResponse(
-      { error: "Falta el prompt. Describe el movimiento que debe hacer el vídeo." },
-      400,
-    );
+    return jsonResponse({ error: "Falta el prompt. Describe el movimiento que debe hacer el vídeo." }, 400);
   }
   if (prompt.length > MAX_PROMPT_LENGTH) {
     return jsonResponse(
-      {
-        error: `El prompt es demasiado largo (máximo ${MAX_PROMPT_LENGTH} caracteres). Acórtalo e inténtalo de nuevo.`,
-      },
+      { error: `El prompt es demasiado largo (máximo ${MAX_PROMPT_LENGTH} caracteres). Acórtalo e inténtalo de nuevo.` },
       400,
     );
   }
 
-  const steps = clampInt(params.steps ?? DEFAULT_STEPS, MIN_STEPS, MAX_STEPS);
-  const duration = clampFloat(params.duration ?? DEFAULT_DURATION, MIN_DURATION, MAX_DURATION, 1);
+  const steps = clampInt(params.steps, DEFAULT_STEPS, MIN_STEPS, MAX_STEPS);
+  const duration = clampFloat(params.duration, DEFAULT_DURATION, MIN_DURATION, MAX_DURATION);
 
-  // Deliberately no retry: a second submission may consume more GPU quota.
-  const imagePath = await uploadImageToSpace(imagePart, env);
-  const eventId = await submitJob(imagePath, imagePart.name, prompt, steps, duration, env);
-
+  // Do not retry: a duplicate submission can consume additional GPU quota.
+  const imagePath = await uploadImageToSpace(image, spaceBase, env);
+  const eventId = await submitJob(imagePath, image.name, prompt, steps, duration, spaceBase, functionName, env);
   const upstream = await fetch(
-    `${env.HF_SPACE_BASE}/gradio_api/call/${env.HF_FN_NAME}/${encodeURIComponent(eventId)}`,
-    {
-      method: "GET",
-      headers: hfHeaders(env, { Accept: "text/event-stream" }),
-    },
+    `${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}/${encodeURIComponent(eventId)}`,
+    { headers: hfHeaders(env, { Accept: "text/event-stream" }) },
   );
 
   if (!upstream.ok || !upstream.body) {
@@ -189,15 +165,32 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       "X-Accel-Buffering": "no",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
 
-async function uploadImageToSpace(file: File, env: Env): Promise<string> {
+function getSpaceBase(env: Env): string {
+  const raw = env.HF_SPACE_BASE?.trim();
+  if (!raw) throw new Error("Falta configurar HF_SPACE_BASE en el Worker.");
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("HF_SPACE_BASE no contiene una URL válida.");
+  }
+  if (url.protocol !== "https:") {
+    throw new Error("HF_SPACE_BASE debe utilizar HTTPS.");
+  }
+  return url.origin + url.pathname.replace(/\/+$/, "");
+}
+
+async function uploadImageToSpace(file: File, spaceBase: string, env: Env): Promise<string> {
   const form = new FormData();
   form.append("files", file, safeFileName(file.name));
 
-  const response = await fetch(`${env.HF_SPACE_BASE}/gradio_api/upload`, {
+  const response = await fetch(`${spaceBase}/gradio_api/upload`, {
     method: "POST",
     headers: hfHeaders(env),
     body: form,
@@ -215,9 +208,7 @@ async function uploadImageToSpace(file: File, env: Env): Promise<string> {
   try {
     paths = await response.json();
   } catch {
-    throw new HuggingFaceError(
-      "Hugging Face recibió la imagen, pero devolvió una respuesta que no es JSON válido.",
-    );
+    throw new HuggingFaceError("Hugging Face recibió la imagen, pero devolvió una respuesta que no es JSON válido.");
   }
 
   if (!Array.isArray(paths) || typeof paths[0] !== "string" || !paths[0]) {
@@ -225,7 +216,6 @@ async function uploadImageToSpace(file: File, env: Env): Promise<string> {
       "Hugging Face no devolvió una ruta de imagen válida tras la subida. No se ha iniciado ninguna generación.",
     );
   }
-
   return paths[0];
 }
 
@@ -235,11 +225,14 @@ async function submitJob(
   prompt: string,
   steps: number,
   duration: number,
+  spaceBase: string,
+  functionName: string,
   env: Env,
 ): Promise<string> {
+  const encodedImagePath = imagePath.split("/").map(encodeURIComponent).join("/");
   const inputImage = {
     path: imagePath,
-    url: `${env.HF_SPACE_BASE}/gradio_api/file=${imagePath}`,
+    url: `${spaceBase}/gradio_api/file=${encodedImagePath}`,
     orig_name: safeFileName(originalName),
     size: null,
     mime_type: null,
@@ -265,7 +258,7 @@ async function submitJob(
     true,
   ];
 
-  const response = await fetch(`${env.HF_SPACE_BASE}/gradio_api/call/${env.HF_FN_NAME}`, {
+  const response = await fetch(`${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}`, {
     method: "POST",
     headers: hfHeaders(env, { "Content-Type": "application/json" }),
     body: JSON.stringify({ data }),
@@ -293,24 +286,18 @@ async function submitJob(
       "Hugging Face no devolvió un ID de trabajo. El Space puede estar ocupado o no disponible. No se ha repetido la petición.",
     );
   }
-
   return payload.event_id;
 }
 
-/**
- * Reads Gradio's SSE stream one event at a time. Normal events are forwarded
- * unchanged. An `event: error` is rewritten with a useful JSON message so the
- * existing frontend can display it instead of the literal text `null`.
- */
 function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
   const reader = source.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let readerReleased = false;
+  let released = false;
 
   const releaseReader = (): void => {
-    if (readerReleased) return;
-    readerReleased = true;
+    if (released) return;
+    released = true;
     try {
       reader.releaseLock();
     } catch {
@@ -323,12 +310,14 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
       try {
         while (true) {
           const { value, done } = await reader.read();
-
           if (done) {
             buffer += decoder.decode();
             if (buffer.trim()) {
-              const finalEvent = transformSseBlock(buffer);
-              controller.enqueue(encoder.encode(finalEvent));
+              const finalEvent = parseSseEvent(buffer);
+              const output = finalEvent.event === "error"
+                ? encodeSseError(buildHuggingFaceError("generar el vídeo", extractSseError(finalEvent.data)))
+                : `${buffer}\n\n`;
+              controller.enqueue(encoder.encode(output));
             }
             controller.close();
             releaseReader();
@@ -336,6 +325,7 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
           }
 
           buffer += decoder.decode(value, { stream: true });
+          let emitted = false;
 
           while (true) {
             const separator = /\r?\n\r?\n/.exec(buffer);
@@ -343,15 +333,11 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
 
             const block = buffer.slice(0, separator.index);
             buffer = buffer.slice(separator.index + separator[0].length);
-
             if (!block.trim()) continue;
 
             const parsed = parseSseEvent(block);
             if (parsed.event === "error") {
-              const message = buildHuggingFaceError(
-                "generar el vídeo",
-                extractSseError(parsed.data),
-              );
+              const message = buildHuggingFaceError("generar el vídeo", extractSseError(parsed.data));
               controller.enqueue(encoder.encode(encodeSseError(message)));
               await reader.cancel().catch(() => undefined);
               controller.close();
@@ -360,10 +346,10 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
             }
 
             controller.enqueue(encoder.encode(`${block}\n\n`));
+            emitted = true;
           }
 
-          // Return after each network chunk so the downstream can consume it.
-          if (buffer.length > 0 || value.byteLength > 0) return;
+          if (emitted) return;
         }
       } catch {
         const message =
@@ -372,7 +358,7 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
           controller.enqueue(encoder.encode(encodeSseError(message)));
           controller.close();
         } catch {
-          controller.error(new Error(message));
+          // The client may have cancelled the downstream stream.
         }
         await reader.cancel().catch(() => undefined);
         releaseReader();
@@ -385,26 +371,13 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): Reada
   });
 }
 
-function transformSseBlock(block: string): string {
-  const parsed = parseSseEvent(block);
-  if (parsed.event !== "error") return `${block}\n\n`;
-
-  const message = buildHuggingFaceError("generar el vídeo", extractSseError(parsed.data));
-  return encodeSseError(message);
-}
-
 function parseSseEvent(block: string): ParsedSseEvent {
   let event = "message";
   const data: string[] = [];
-
   for (const line of block.split(/\r?\n/)) {
-    if (line.startsWith("event:")) {
-      event = line.slice(6).trim() || "message";
-    } else if (line.startsWith("data:")) {
-      data.push(line.slice(5).replace(/^ /, ""));
-    }
+    if (line.startsWith("event:")) event = line.slice(6).trim() || "message";
+    else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
   }
-
   return { event, data: data.join("\n") };
 }
 
@@ -417,12 +390,9 @@ function extractSseError(raw: string): string {
   if (isRecord(parsed)) {
     for (const key of ["message", "error", "detail", "description", "title"]) {
       const candidate = parsed[key];
-      if (typeof candidate === "string" && candidate.trim()) {
-        return truncateDetail(candidate);
-      }
+      if (typeof candidate === "string" && candidate.trim()) return truncateDetail(candidate);
     }
   }
-
   return truncateDetail(value);
 }
 
@@ -431,7 +401,7 @@ function encodeSseError(message: string): string {
 }
 
 function buildHuggingFaceError(action: string, detail = "", status?: number): string {
-  const cleanDetail = detail.trim();
+  const cleanDetail = truncateDetail(detail);
   const suffix = cleanDetail ? ` Detalle de Hugging Face: ${cleanDetail}` : "";
 
   if (status === 429 || isQuotaError(cleanDetail)) {
@@ -441,17 +411,13 @@ function buildHuggingFaceError(action: string, detail = "", status?: number): st
       suffix
     );
   }
-
   if (status === 401 || status === 403) {
     return (
       `Hugging Face no ha autorizado la operación al ${action}. Comprueba que el Space sea público y que HF_TOKEN, si lo utilizas, sea válido.` +
       suffix
     );
   }
-
-  if (cleanDetail) {
-    return `Hugging Face no ha podido ${action}.${suffix}`;
-  }
+  if (cleanDetail) return `Hugging Face no ha podido ${action}.${suffix}`;
 
   return (
     `Hugging Face ha devuelto un error sin detalles al ${action} (Gradio puede haber enviado data:null). ` +
@@ -461,9 +427,7 @@ function buildHuggingFaceError(action: string, detail = "", status?: number): st
 }
 
 function isQuotaError(value: string): boolean {
-  return /(?:quota|daily\s+limit|24\s*(?:h|hours?)|24-hour|rate.?limit|too many requests|zero.?gpu|gpu\s*(?:time|quota|limit)|compute\s*(?:time|quota)|exceeded.{0,40}(?:limit|quota)|limit.{0,40}(?:exceeded|quota|hours?))/i.test(
-    value,
-  );
+  return /(?:quota|daily\s+limit|24\s*(?:h|hours?)|24-hour|rate.?limit|too many requests|zero.?gpu|gpu\s*(?:time|quota|limit)|compute\s*(?:time|quota)|exceeded.{0,40}(?:limit|quota)|limit.{0,40}(?:exceeded|quota|hours?))/i.test(value);
 }
 
 function clientStatus(upstreamStatus: number): number {
@@ -474,27 +438,23 @@ function clientStatus(upstreamStatus: number): number {
 
 function hfHeaders(env: Env, initial?: HeadersInit): Headers {
   const headers = new Headers(initial);
-  if (env.HF_TOKEN?.trim()) {
-    headers.set("Authorization", `Bearer ${env.HF_TOKEN.trim()}`);
-  }
+  const token = env.HF_TOKEN?.trim();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   return headers;
 }
 
 function withCors(response: Response, origin: string, env: Env): Response {
-  const allowedOrigins = (env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const allowedOrigins = (env.ALLOWED_ORIGINS ?? "").split(",").map((item) => item.trim());
   const headers = new Headers(response.headers);
 
+  if (origin) headers.set("Vary", "Origin");
   if (origin && allowedOrigins.includes(origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
-    headers.set("Vary", "Origin");
   }
-
   headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Content-Type");
   headers.set("Access-Control-Max-Age", "86400");
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -502,32 +462,63 @@ function withCors(response: Response, origin: string, env: Env): Response {
   });
 }
 
-function isSupportedImage(file: File): boolean {
-  const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
-  if (allowedTypes.has(file.type.toLowerCase())) return true;
-  return /\.(png|jpe?g|webp)$/i.test(file.name);
+async function isSupportedImage(file: File): Promise<boolean> {
+  const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const isPng = header.length >= 8 &&
+    header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47 &&
+    header[4] === 0x0d && header[5] === 0x0a && header[6] === 0x1a && header[7] === 0x0a;
+  const isJpeg = header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+  const isWebp = header.length >= 12 &&
+    header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46 &&
+    header[8] === 0x57 && header[9] === 0x45 && header[10] === 0x42 && header[11] === 0x50;
+  return isPng || isJpeg || isWebp;
 }
 
 function safeFileName(name: string): string {
-  const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
-  return cleaned || "privdark-image.png";
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100) || "privdark-image.png";
 }
 
 async function readResponseDetail(response: Response): Promise<string> {
-  const text = await response.text().catch(() => "");
-  if (!text) return "";
+  const reader = response.body?.getReader();
+  if (!reader) return "";
 
-  const compact = text.replace(/\s+/g, " ").trim();
+  const decoder = new TextDecoder();
+  let body = "";
+  let bytesRead = 0;
+  const maxBytes = 8 * 1024;
+  try {
+    while (bytesRead < maxBytes) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const remaining = maxBytes - bytesRead;
+      const chunk = value.subarray(0, remaining);
+      bytesRead += chunk.byteLength;
+      body += decoder.decode(chunk, { stream: bytesRead < maxBytes });
+      if (value.byteLength > remaining) {
+        await reader.cancel().catch(() => undefined);
+        break;
+      }
+    }
+    body += decoder.decode();
+  } catch {
+    // Error details are best-effort; do not mask the upstream HTTP error.
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // The reader may already be released.
+    }
+  }
+  if (!body) return "";
+
+  const compact = body.replace(/\s+/g, " ").trim();
   const parsed = safeJsonParse(compact);
   if (isRecord(parsed)) {
     for (const key of ["error", "message", "detail", "reason"]) {
       const value = parsed[key];
-      if (typeof value === "string" && value.trim()) {
-        return truncateDetail(value);
-      }
+      if (typeof value === "string" && value.trim()) return truncateDetail(value);
     }
   }
-
   return truncateDetail(compact);
 }
 
@@ -538,15 +529,14 @@ function truncateDetail(value: string): string {
     : compact;
 }
 
-function clampInt(value: number, minimum: number, maximum: number): number {
-  if (!Number.isFinite(value)) return minimum;
+function clampInt(value: unknown, fallback: number, minimum: number, maximum: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return Math.max(minimum, Math.min(maximum, Math.round(value)));
 }
 
-function clampFloat(value: number, minimum: number, maximum: number, decimals = 1): number {
-  if (!Number.isFinite(value)) return minimum;
-  const factor = 10 ** decimals;
-  const rounded = Math.round(value * factor) / factor;
+function clampFloat(value: unknown, fallback: number, minimum: number, maximum: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  const rounded = Math.round(value * 10) / 10;
   return Math.max(minimum, Math.min(maximum, rounded));
 }
 
@@ -565,6 +555,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
   });
 }
