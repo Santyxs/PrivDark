@@ -52,12 +52,11 @@ textarea {
 
 .wrap {
   width: 100%;
-  max-width: 72rem;
+  max-width: 40rem;
   margin: 0 auto;
   padding-inline: max(var(--pad), env(safe-area-inset-left)) max(var(--pad), env(safe-area-inset-right));
 }
 
-/* Header */
 .site-header {
   position: sticky;
   top: 0;
@@ -96,27 +95,22 @@ textarea {
   color: var(--glow);
 }
 
-/* Studio layout */
 .studio {
   padding-block: clamp(1rem, 3vw, 1.5rem) max(2.5rem, env(safe-area-inset-bottom));
 }
+
+/* Siempre una columna: controles arriba, vídeo abajo */
 .studio-shell {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: clamp(0.75rem, 2vw, 1rem);
   padding: clamp(0.55rem, 2vw, 0.75rem);
   border-radius: clamp(0.75rem, 2.5vw, 1rem);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(14, 11, 21, 0.9);
 }
-@media (min-width: 860px) {
-  .studio-shell {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-  }
-}
 .studio-card {
-  min-width: 0; /* evita desbordes en grid */
+  min-width: 0;
   border-radius: var(--radius);
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(16, 13, 24, 0.9);
@@ -164,7 +158,6 @@ textarea {
   color: var(--muted);
 }
 
-/* Dropzone */
 .dropzone {
   display: grid;
   min-height: clamp(140px, 32vw, 200px);
@@ -194,11 +187,10 @@ textarea {
 .dropzone-empty .title {
   margin: 0;
   font-weight: 500;
-  font-size: clamp(0.9rem, 3vw, 1rem);
 }
 .dropzone-empty .browse {
   margin: 0.35rem 0 0;
-  font-size: clamp(0.8rem, 2.6vw, 0.9rem);
+  font-size: 0.85rem;
   color: var(--glow);
 }
 .dropzone-empty.hide {
@@ -215,7 +207,6 @@ textarea {
   display: block;
 }
 
-/* Prompt */
 .prompt-field {
   width: 100%;
   min-height: clamp(88px, 22vw, 120px);
@@ -238,7 +229,6 @@ textarea {
   color: var(--muted);
 }
 
-/* Params */
 .params {
   display: flex;
   flex-direction: column;
@@ -254,7 +244,7 @@ textarea {
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.4rem;
-  font-size: clamp(0.72rem, 2.5vw, 0.8rem);
+  font-size: 0.75rem;
   color: #cbd5e1;
 }
 .param-value {
@@ -271,11 +261,10 @@ textarea {
 }
 .help-text {
   margin: 0;
-  font-size: clamp(0.68rem, 2.3vw, 0.75rem);
+  font-size: 0.72rem;
   color: var(--muted);
 }
 
-/* Actions */
 .actions {
   display: flex;
   flex-direction: column;
@@ -344,7 +333,7 @@ textarea {
 }
 .status-msg {
   margin: 0;
-  font-size: clamp(0.72rem, 2.4vw, 0.8rem);
+  font-size: 0.75rem;
   color: var(--muted);
   word-break: break-word;
 }
@@ -361,12 +350,11 @@ textarea {
   color: var(--glow);
 }
 
-/* Output */
 .output-head {
   margin-bottom: 0.85rem;
 }
 .result-frame {
-  min-height: clamp(180px, 42vw, 260px);
+  min-height: clamp(180px, 42vw, 280px);
   border-radius: var(--radius);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #08070d;
@@ -397,7 +385,6 @@ textarea {
 .result-loading .msg {
   margin: 0;
   color: #cbd5e1;
-  font-size: clamp(0.85rem, 2.8vw, 0.95rem);
 }
 .loading-orbit {
   position: relative;
@@ -437,11 +424,10 @@ textarea {
   justify-content: space-between;
   gap: 0.65rem;
   margin-top: 0.75rem;
-  font-size: clamp(0.68rem, 2.3vw, 0.75rem);
+  font-size: 0.72rem;
   color: var(--muted);
 }
 
-/* History */
 .history-wrap {
   display: none;
   margin-top: 1rem;
@@ -466,8 +452,6 @@ textarea {
   list-style: none;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity;
 }
 .history-item {
   flex-shrink: 0;
@@ -475,10 +459,8 @@ textarea {
   overflow: hidden;
   border-radius: 0.4rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  scroll-snap-align: start;
 }
-.history-item:hover,
-.history-item:focus-within {
+.history-item:hover {
   border-color: rgba(155, 93, 229, 0.6);
 }
 .history-item video {
@@ -503,7 +485,6 @@ textarea {
   }
 }
 
-/* Preferencias de movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
   .pulse-dot,
   .loading-orbit {
