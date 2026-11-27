@@ -204,11 +204,6 @@ const baseUrl = import.meta.env.BASE_URL;
       const resultFrame = q<HTMLElement>(".result-frame");
       const downloadLink = q<HTMLAnchorElement>("[data-download]");
 
-      resultVideo.addEventListener("loadedmetadata", () => {
-        if (resultVideo.videoWidth > 0 && resultVideo.videoHeight > 0) {
-          resultFrame.style.aspectRatio = `${resultVideo.videoWidth} / ${resultVideo.videoHeight}`;
-        }
-      });
       const historyWrap = q<HTMLElement>("[data-history-wrap]");
       const historyList = q<HTMLUListElement>("[data-history]");
 
