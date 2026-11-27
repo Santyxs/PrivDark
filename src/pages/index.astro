@@ -154,6 +154,10 @@ const baseUrl = import.meta.env.BASE_URL;
               <p class="msg" data-loading-message>Generando...</p>
             </div>
             <video data-result-video controls playsinline class="result-video hide" preload="metadata" aria-label="Vídeo generado"></video>
+            <div class="volume-control hide" data-volume-control aria-label="Control de volumen">
+              <span class="volume-icon" aria-hidden="true">VOL</span>
+              <input data-volume type="range" min="0" max="1" step="0.01" value="1" aria-label="Volumen" />
+            </div>
           </div>
 
           <div class="output-foot">
@@ -247,6 +251,10 @@ const baseUrl = import.meta.env.BASE_URL;
       const resultVideo = q<HTMLVideoElement>("[data-result-video]");
       const resultFrame = q<HTMLElement>(".result-frame");
       const downloadLink = q<HTMLAnchorElement>("[data-download]");
+      const volumeControl = q<HTMLElement>("[data-volume-control]");
+      const volumeSlider = q<HTMLInputElement>("[data-volume]");
+      volumeSlider.addEventListener("input", () => { resultVideo.volume = Number(volumeSlider.value); resultVideo.muted = resultVideo.volume === 0; });
+      resultVideo.addEventListener("volumechange", () => { volumeSlider.value = String(resultVideo.muted ? 0 : resultVideo.volume); });
 
       const historyWrap = q<HTMLElement>("[data-history-wrap]");
       const historyList = q<HTMLUListElement>("[data-history]");
@@ -279,6 +287,7 @@ const baseUrl = import.meta.env.BASE_URL;
         emptyResult.classList.toggle("hide", state !== "empty");
         loadingResult.classList.toggle("hide", state !== "loading");
         resultVideo.classList.toggle("hide", !hasVideo);
+        volumeControl.classList.toggle("hide", !hasVideo);
         resultFrame.classList.toggle("has-video", hasVideo);
         downloadLink.classList.toggle("show", hasVideo);
         // Synchronize hidden state explicitly to avoid stale preview states.
@@ -510,24 +519,22 @@ const baseUrl = import.meta.env.BASE_URL;
         const video = document.createElement("video");
         video.src = url;
         video.muted = true;
-        video.loop = true;
+        video.loop = false;
         video.playsInline = true;
         video.preload = "auto";
         item.append(video);
-        // Load enough video data for a visible frame, then play muted inline.
-        video.addEventListener("loadeddata", () => void video.play().catch(() => undefined), { once: true });
-        void video.play().catch(() => undefined);
+        // Preview plays once; visibility changes only pause/resume, never restart an ended clip.
+        const playPreview = () => {
+          if (!video.ended && video.paused) void video.play().catch(() => undefined);
+        };
+        video.addEventListener("loadeddata", playPreview, { once: true });
         const previewObserver = new IntersectionObserver((entries) => {
           for (const entry of entries) {
-            if (entry.isIntersecting) void video.play().catch(() => undefined);
+            if (entry.isIntersecting) playPreview();
             else video.pause();
           }
         }, { threshold: 0.15 });
         previewObserver.observe(item);
-        item.addEventListener("mouseenter", () => void video.play().catch(() => undefined));
-        item.addEventListener("mouseleave", () => {
-          if (!item.getBoundingClientRect().width) video.pause();
-        });
         item.addEventListener("click", () => openHistoryVideo(url));
         item.addEventListener("keydown", (event) => {
           if (event.key === "Enter" || event.key === " ") {
