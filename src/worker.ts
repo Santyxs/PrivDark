@@ -52,12 +52,17 @@ export default {
         const response = await handleGenerate(req, env);
         return withCors(response, origin, env);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Unexpected generation error.";
+        const message =
+          error instanceof Error ? error.message : "Error inesperado al generar el vídeo. Inténtalo de nuevo.";
         return withCors(jsonResponse({ error: message }, 502), origin, env);
       }
     }
 
-    return withCors(jsonResponse({ error: "Not found" }, 404), origin, env);
+    return withCors(
+      jsonResponse({ error: "Ruta no encontrada. Usa POST /generate o GET /health." }, 404),
+      origin,
+      env,
+    );
   },
 } satisfies ExportedHandler<Env>;
 
@@ -66,33 +71,50 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
   try {
     form = await req.formData();
   } catch {
-    return jsonResponse({ error: "The request must be multipart form data." }, 400);
+    return jsonResponse(
+      { error: "La petición debe enviarse como multipart/form-data (imagen + parámetros)." },
+      400,
+    );
   }
 
   const imagePart = form.get("image") as unknown;
   const paramsRaw = form.get("params");
 
   if (!(imagePart instanceof File)) {
-    return jsonResponse({ error: "No se ha recibido ninguna imagen." }, 400);
+    return jsonResponse({ error: "Falta la imagen. Sube un archivo PNG, JPG o WEBP." }, 400);
   }
   if (imagePart.size === 0) {
-    return jsonResponse({ error: "La imagen está vacía." }, 400);
+    return jsonResponse({ error: "El archivo de imagen está vacío (0 bytes). Elige otra imagen." }, 400);
   }
   if (imagePart.size > MAX_IMAGE_BYTES) {
-    return jsonResponse({ error: "La imagen supera el límite de 8 MB." }, 413);
+    return jsonResponse(
+      { error: "La imagen pesa más de 8 MB. Comprime o elige una más ligera." },
+      413,
+    );
   }
   if (!isSupportedImage(imagePart)) {
-    return jsonResponse({ error: "Formato no compatible. Usa PNG, JPG o WEBP." }, 415);
+    return jsonResponse(
+      { error: "Formato de imagen no válido. Solo se admiten PNG, JPG y WEBP." },
+      415,
+    );
   }
 
   const parsed = typeof paramsRaw === "string" ? safeJsonParse(paramsRaw) : null;
   const params: UserParams = isRecord(parsed) ? (parsed as UserParams) : {};
   const prompt = typeof params.prompt === "string" ? params.prompt.trim() : "";
   if (!prompt) {
-    return jsonResponse({ error: "Escribe una descripción del movimiento." }, 400);
+    return jsonResponse(
+      { error: "Falta el prompt. Describe el movimiento que debe hacer el vídeo." },
+      400,
+    );
   }
   if (prompt.length > MAX_PROMPT_LENGTH) {
-    return jsonResponse({ error: `El texto no puede superar los ${MAX_PROMPT_LENGTH} caracteres.` }, 400);
+    return jsonResponse(
+      {
+        error: `El prompt es demasiado largo (máximo ${MAX_PROMPT_LENGTH} caracteres). Acórtalo e inténtalo de nuevo.`,
+      },
+      400,
+    );
   }
 
   const steps = clampInt(params.steps ?? DEFAULT_STEPS, MIN_STEPS, MAX_STEPS);
@@ -110,7 +132,9 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
 
   if (!upstream.ok || !upstream.body) {
     const detail = await readResponseDetail(upstream);
-    throw new Error(`No se pudo abrir el flujo de resultados (${upstream.status})${detail}`);
+    throw new Error(
+      `No se pudo recibir el vídeo desde Hugging Face (código ${upstream.status})${detail}. Prueba otra vez en unos minutos.`,
+    );
   }
 
   return new Response(upstream.body, {
@@ -135,12 +159,16 @@ async function uploadImageToSpace(file: File, env: Env): Promise<string> {
 
   if (!response.ok) {
     const detail = await readResponseDetail(response);
-    throw new Error(`La subida a Hugging Face ha fallado (${response.status})${detail}`);
+    throw new Error(
+      `No se pudo subir la imagen a Hugging Face (código ${response.status})${detail}. Revisa la conexión o el token HF.`,
+    );
   }
 
   const paths: unknown = await response.json();
   if (!Array.isArray(paths) || typeof paths[0] !== "string" || !paths[0]) {
-    throw new Error("Hugging Face ha devuelto una ruta de imagen no válida.");
+    throw new Error(
+      "Hugging Face no devolvió una ruta de imagen válida tras la subida. Vuelve a intentar con otra imagen.",
+    );
   }
   return paths[0];
 }
@@ -189,12 +217,16 @@ async function submitJob(
 
   if (!response.ok) {
     const detail = await readResponseDetail(response);
-    throw new Error(`Hugging Face ha rechazado la generación (${response.status})${detail}`);
+    throw new Error(
+      `Hugging Face rechazó la generación (código ${response.status})${detail}. Puede ser cuota GPU agotada o el Space caído.`,
+    );
   }
 
   const payload: unknown = await response.json();
   if (!isRecord(payload) || typeof payload.event_id !== "string" || !payload.event_id) {
-    throw new Error("Hugging Face no ha devuelto un identificador de generación.");
+    throw new Error(
+      "Hugging Face no devolvió un ID de trabajo. El Space puede estar saturado; espera un momento y reintenta.",
+    );
   }
   return payload.event_id;
 }
