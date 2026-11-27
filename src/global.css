@@ -696,11 +696,10 @@ textarea:focus-visible,
 
 .result-empty,
 .result-loading {
-  position: absolute;
+  grid-area: 1 / 1;
   z-index: 1;
-  inset: 0;
   display: flex;
-  min-height: 0;
+  min-height: 280px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
