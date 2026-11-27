@@ -3,11 +3,10 @@ import "@/global.css";
 
 const title = "PrivDark — Your Private AI Studio";
 const description = "Estudio audiovisual con IA. Anima imágenes y crea clips de vídeo de 10 segundos con Wan 2.2.";
-const ogImage = "og.png";
 const baseUrl = import.meta.env.BASE_URL;
 const siteOrigin = Astro.site?.origin ?? "https://privdark.pages.dev";
 const canonical = new URL(Astro.url.pathname, siteOrigin).toString();
-const absoluteOg = new URL(`${baseUrl}${ogImage}`, siteOrigin).toString();
+const absoluteOg = new URL(`${baseUrl}og.png`, siteOrigin).toString();
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
@@ -35,7 +34,6 @@ const jsonLd = {
     <meta name="robots" content="noindex, nofollow" />
     <link rel="icon" type="image/svg+xml" href={`${baseUrl}favicon.svg`} />
     <link rel="apple-touch-icon" href={`${baseUrl}og.png`} />
-
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="PrivDark" />
     <meta property="og:title" content={title} />
@@ -59,9 +57,7 @@ const jsonLd = {
           <svg viewBox="0 0 40 40" class="brand-mark" aria-hidden="true">
             <defs>
               <linearGradient id="privdark-mark" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-                <stop stop-color="#e7c5ff" />
-                <stop offset="0.52" stop-color="#a76bff" />
-                <stop offset="1" stop-color="#ed70d7" />
+                <stop stop-color="#e7c5ff" /><stop offset="0.52" stop-color="#a76bff" /><stop offset="1" stop-color="#ed70d7" />
               </linearGradient>
             </defs>
             <path d="M20 3.5 34 11.5v17L20 36.5 6 28.5v-17L20 3.5Z" fill="none" stroke="url(#privdark-mark)" stroke-width="1.7" />
@@ -71,7 +67,6 @@ const jsonLd = {
           <span class="brand-wordmark">PRIV<span>DARK</span></span>
           <span class="brand-pill">AI STUDIO</span>
         </a>
-
         <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
           <span class="status-indicator" aria-hidden="true"></span>
           <span>Estudio creativo</span>
@@ -101,12 +96,8 @@ const jsonLd = {
           <div class="studio-card space-y-6 p-3 sm:p-5">
             <div class="section-heading">
               <div class="section-number">01</div>
-              <div>
-                <h2>Imagen de origen</h2>
-                <p>Elige la imagen que quieres animar.</p>
-              </div>
+              <div><h2>Imagen de origen</h2><p>Elige la imagen que quieres animar.</p></div>
             </div>
-
             <label class="dropzone group" data-dropzone>
               <input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" data-file-input />
               <div class="dropzone-empty text-center px-6 py-10" data-dropzone-empty>
@@ -120,67 +111,42 @@ const jsonLd = {
                 <p class="mt-3 text-xs text-slate-500">PNG, JPG o WEBP · máximo 8 MB</p>
                 <p class="mt-1 text-[11px] text-slate-600">Usa imágenes de personajes adultos ficticios.</p>
               </div>
-              <img data-dropzone-preview class="hidden max-h-[340px] w-full rounded-xl object-contain" alt="Vista previa de la imagen seleccionada" />
+              <img data-dropzone-preview class="hidden max-h-[340px] w-full rounded-xl object-contain" alt="Vista previa" />
             </label>
-
             <div class="space-y-3">
               <div class="section-heading compact-heading">
                 <div class="section-number">02</div>
-                <div>
-                  <h2>Dirección creativa</h2>
-                  <p>Describe qué debe ocurrir en el vídeo.</p>
-                </div>
+                <div><h2>Dirección creativa</h2><p>Describe qué debe ocurrir en el vídeo.</p></div>
               </div>
-              <textarea
-                id="prompt"
-                rows="5"
-                data-prompt
-                class="prompt-field"
-                placeholder="Describe el movimiento, la expresión, la cámara, la iluminación y el ambiente de la escena..."
-              ></textarea>
+              <textarea rows="5" data-prompt class="prompt-field" placeholder="Describe el movimiento, la expresión, la cámara, la iluminación y el ambiente de la escena..."></textarea>
               <div class="flex items-start justify-between gap-3 text-xs text-slate-500">
                 <span>Especifica acciones y movimientos. El modelo ya analiza la imagen.</span>
                 <span class="shrink-0" data-prompt-count>0 / 1200</span>
               </div>
             </div>
-
             <details class="advanced-panel">
-              <summary>
-                <span>Parámetros de generación</span>
-                <span class="advanced-summary-meta">Configuración optimizada</span>
-              </summary>
+              <summary><span>Parámetros de generación</span><span class="advanced-summary-meta">Configuración optimizada</span></summary>
               <div class="advanced-content space-y-4">
                 <div class="parameter-row">
-                  <div>
-                    <p class="parameter-label">Duración</p>
-                    <p class="parameter-help">Duración máxima admitida por este Space</p>
-                  </div>
+                  <div><p class="parameter-label">Duración</p><p class="parameter-help">Duración máxima admitida por este Space</p></div>
                   <span class="parameter-value">10,0 s</span>
-                  <input type="hidden" data-duration value="10" />
-                  <span class="hidden" data-duration-value>10s</span>
                 </div>
                 <div class="space-y-2">
                   <div class="parameter-row">
-                    <div>
-                      <p class="parameter-label">Pasos de inferencia</p>
-                      <p class="parameter-help">Más pasos pueden mejorar el detalle, pero consumen más GPU.</p>
-                    </div>
+                    <div><p class="parameter-label">Pasos de inferencia</p><p class="parameter-help">Más pasos pueden mejorar el detalle, pero consumen más GPU.</p></div>
                     <span class="parameter-value"><span data-steps-value>3</span></span>
                   </div>
-                  <input type="range" min="3" max="4" step="1" value="3" data-steps class="w-full accent-brand" aria-label="Pasos de inferencia" />
+                  <input type="range" min="3" max="4" step="1" value="3" data-steps class="w-full accent-brand" aria-label="Pasos" />
                 </div>
-                <p class="text-xs leading-relaxed text-slate-500">3 pasos priorizan la cuota gratuita. Puedes subir a 4 si prefieres probar un poco más de detalle, con un consumo mayor.</p>
-                <p class="text-xs leading-relaxed text-slate-500">La generación depende de la disponibilidad de Hugging Face ZeroGPU. Un clip de 10 segundos puede consumir casi toda la cuota diaria.</p>
+                <p class="text-xs leading-relaxed text-slate-500">3 pasos priorizan la cuota gratuita. Puedes subir a 4 si prefieres más detalle.</p>
+                <p class="text-xs leading-relaxed text-slate-500">La generación depende de Hugging Face ZeroGPU. Un clip de 10 s puede consumir casi toda la cuota diaria.</p>
               </div>
             </details>
-
             <div class="flex flex-col sm:flex-row sm:items-center gap-3">
               <button data-generate class="btn-primary w-full sm:w-auto" disabled>
                 <span class="pulse-dot hidden" data-spinner></span>
                 <span data-button-label>Generar vídeo</span>
-                <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                  <path d="m7 4 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
+                <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m7 4 6 6-6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>
               </button>
               <p class="text-xs text-slate-500 sm:max-w-[190px]" data-status>Añade una imagen y describe el movimiento.</p>
             </div>
@@ -190,14 +156,10 @@ const jsonLd = {
             <div class="flex items-center justify-between gap-3 mb-5">
               <div class="section-heading">
                 <div class="section-number">03</div>
-                <div>
-                  <h2>Resultado</h2>
-                  <p>Tu creación aparecerá aquí.</p>
-                </div>
+                <div><h2>Resultado</h2><p>Tu creación aparecerá aquí.</p></div>
               </div>
               <span class="output-tag">PREVIEW</span>
             </div>
-
             <div class="result-frame">
               <div data-result-empty class="result-empty">
                 <div class="result-empty-mark">
@@ -216,7 +178,6 @@ const jsonLd = {
               </div>
               <video data-result-video controls playsinline class="hidden w-full" preload="metadata"></video>
             </div>
-
             <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
               <p class="text-xs text-slate-500">Formato de salida: MP4 · 16 FPS nativos</p>
               <a data-download class="btn-ghost hidden" download>
@@ -226,17 +187,12 @@ const jsonLd = {
                 Descargar MP4
               </a>
             </div>
-
             <div data-history-wrap class="history-wrap hidden">
-              <div class="history-heading">
-                <span>Generaciones de esta sesión</span>
-                <span class="history-session-dot"></span>
-              </div>
+              <div class="history-heading"><span>Generaciones de esta sesión</span><span class="history-session-dot"></span></div>
               <ul data-history class="flex gap-3 overflow-x-auto pb-1"></ul>
             </div>
           </div>
         </div>
-
         <p class="studio-footnote">PRIVDARK <span>·</span> Estudio experimental de generación audiovisual con IA.</p>
       </section>
     </main>
@@ -249,7 +205,146 @@ const jsonLd = {
     </footer>
 
     <script>
-      import "@/studio";
+      const W = import.meta.env.PUBLIC_WORKER_URL;
+      if (!W) throw new Error("PUBLIC_WORKER_URL no definida");
+      const MAX = 8 << 20, PL = 1200, HF = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
+      const q = (s) => document.querySelector(s);
+      const dz = q("[data-dropzone]"), fi = q("[data-file-input]"), de = q("[data-dropzone-empty]"), dp = q("[data-dropzone-preview]");
+      const pr = q("[data-prompt]"), pc = q("[data-prompt-count]"), st = q("[data-steps]"), sv = q("[data-steps-value]");
+      const btn = q("[data-generate]"), bl = q("[data-button-label]"), sp = q("[data-spinner]"), stt = q("[data-status]");
+      const re = q("[data-result-empty]"), rl = q("[data-result-loading]"), lm = q("[data-loading-message]");
+      const vid = q("[data-result-video]"), dl = q("[data-download]"), hw = q("[data-history-wrap]"), hl = q("[data-history]");
+      let file = null, busy = false, prev = null;
+
+      const status = (m, t = "info") => {
+        stt.textContent = m;
+        stt.className = "text-xs sm:max-w-[190px] " + (t === "error" ? "text-rose-400" : t === "success" ? "text-brand-glow" : "text-slate-500");
+      };
+      const ready = () => { btn.disabled = !(file && pr.value.trim() && !busy); };
+      const show = (s) => {
+        re.classList.toggle("hidden", s !== "empty");
+        rl.classList.toggle("hidden", s !== "loading");
+        vid.classList.toggle("hidden", s !== "ready");
+        dl.classList.toggle("hidden", s !== "ready");
+      };
+      const accept = (f) => {
+        const ok = /image\/(png|jpeg|webp)/i.test(f.type) || /\.(png|jpe?g|webp)$/i.test(f.name);
+        if (!ok) return status("Formato no compatible. Usa PNG, JPG o WEBP.", "error");
+        if (!f.size || f.size > MAX) return status(f.size ? "La imagen supera 8 MB." : "Archivo vacío.", "error");
+        file = f;
+        if (prev) URL.revokeObjectURL(prev);
+        prev = URL.createObjectURL(f);
+        dp.src = prev; dp.classList.remove("hidden"); de.classList.add("hidden");
+        ready(); status("Imagen preparada. Ya puedes generar.", "success");
+      };
+
+      fi.onchange = () => fi.files?.[0] && accept(fi.files[0]);
+      ["dragenter", "dragover"].forEach((e) => dz.addEventListener(e, (ev) => { ev.preventDefault(); dz.dataset.active = "true"; }));
+      ["dragleave", "drop"].forEach((e) => dz.addEventListener(e, () => { dz.dataset.active = "false"; }));
+      dz.ondrop = (e) => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) accept(f); };
+      window.addEventListener("paste", (e) => { const f = e.clipboardData?.files?.[0]; if (f) accept(f); });
+      pr.maxLength = PL;
+      pr.oninput = () => { pc.textContent = `${pr.value.length} / ${PL}`; ready(); };
+      st.oninput = () => { sv.textContent = st.value; };
+
+      const videoUrl = (d) => {
+        if (typeof d === "string") return /^https?:/i.test(d) ? d : new URL(`/gradio_api/file=${d.replace(/^\//, "")}`, HF).href;
+        if (!d || typeof d !== "object") return null;
+        const c = d.url || d.path;
+        if (typeof c !== "string" || !c) return null;
+        return /^https?:/i.test(c) ? c : new URL(`/gradio_api/file=${c.replace(/^\//, "")}`, HF).href;
+      };
+
+      const parseEvt = (raw) => {
+        let ev = "message", lines = [];
+        for (const l of raw.split(/\r?\n/)) {
+          if (l.startsWith("event:")) ev = l.slice(6).trim();
+          else if (l.startsWith("data:")) lines.push(l.slice(5).trimStart());
+        }
+        if (!lines.length) return null;
+        const data = lines.join("\n");
+        if (ev === "error") {
+          try {
+            const p = JSON.parse(data);
+            throw new Error(typeof p === "string" ? p : p?.message || data);
+          } catch (e) {
+            if (e instanceof Error && e.message !== data) throw e;
+            throw new Error(data || "Error de Hugging Face");
+          }
+        }
+        if (ev !== "complete") return null;
+        const p = JSON.parse(data);
+        const u = videoUrl(Array.isArray(p) ? p[0] : null);
+        if (!u) throw new Error("No se recibió el vídeo");
+        return u;
+      };
+
+      const readSSE = async (body) => {
+        const r = body.getReader(), d = new TextDecoder();
+        let buf = "";
+        try {
+          while (true) {
+            const { value, done } = await r.read();
+            if (done) break;
+            buf += d.decode(value, { stream: true });
+            const parts = buf.split(/\r?\n\r?\n/);
+            buf = parts.pop() || "";
+            for (const c of parts) { const u = parseEvt(c); if (u) return u; }
+          }
+          buf += d.decode();
+          if (buf.trim()) { const u = parseEvt(buf); if (u) return u; }
+        } finally { await r.cancel().catch(() => {}); r.releaseLock(); }
+        throw new Error("Conexión cerrada sin vídeo");
+      };
+
+      const errMsg = async (res) => {
+        try { const j = await res.clone().json(); if (j?.error) return j.error; } catch {}
+        return (await res.text().catch(() => "")) || `${res.status} ${res.statusText}`;
+      };
+
+      const addHist = (url) => {
+        hw.classList.remove("hidden");
+        const li = document.createElement("li");
+        li.className = "history-item";
+        const v = document.createElement("video");
+        Object.assign(v, { src: url, muted: true, loop: true, playsInline: true, preload: "metadata", className: "h-20 w-32 object-cover" });
+        li.onmouseenter = () => v.play().catch(() => {});
+        li.onmouseleave = () => { v.pause(); v.currentTime = 0; };
+        li.onclick = () => {
+          vid.pause(); vid.src = url; vid.load();
+          dl.href = url; dl.download = `privdark-${Date.now()}.mp4`;
+          show("ready");
+        };
+        li.appendChild(v); hl.prepend(li);
+      };
+
+      const msgs = ["Preparando la imagen...", "Esperando GPU en Hugging Face...", "Cargando Wan 2.2...", "Generando fotogramas...", "Montando MP4...", "Finalizando..."];
+
+      btn.onclick = async () => {
+        const prompt = pr.value.trim();
+        if (!file || !prompt || busy) return;
+        busy = true; sp.classList.remove("hidden"); bl.textContent = "Generando..."; ready();
+        show("loading"); status("Enviando imagen y solicitando GPU...");
+        let i = 0; lm.textContent = msgs[0];
+        const t = setInterval(() => { i = Math.min(i + 1, msgs.length - 1); lm.textContent = msgs[i]; }, 9000);
+        try {
+          const fd = new FormData();
+          fd.append("image", file, file.name);
+          fd.append("params", JSON.stringify({ prompt, steps: +st.value }));
+          const res = await fetch(`${W.replace(/\/$/, "")}/generate`, { method: "POST", body: fd });
+          if (!res.ok || !res.body) throw new Error(await errMsg(res));
+          const url = await readSSE(res.body);
+          vid.pause(); vid.src = url; vid.load();
+          dl.href = url; dl.download = `privdark-${Date.now()}.mp4`;
+          show("ready"); status("Generación completada.", "success"); addHist(url);
+        } catch (e) {
+          status(`No se pudo generar: ${e?.message || e}`, "error"); show("empty");
+        } finally {
+          clearInterval(t); busy = false; sp.classList.add("hidden"); bl.textContent = "Generar vídeo"; ready();
+        }
+      };
+
+      show("empty"); ready();
     </script>
   </body>
 </html>
