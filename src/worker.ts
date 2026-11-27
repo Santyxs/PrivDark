@@ -15,7 +15,7 @@ export interface Env {
 }
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_PROMPT_LENGTH = 300;
+const MAX_PROMPT_LENGTH = 500;
 const DEFAULT_DURATION = 5;
 const MIN_DURATION = 1;
 const MAX_DURATION = 10;
