@@ -718,12 +718,24 @@ textarea:focus-visible,
   position: relative;
   z-index: 1;
   display: block;
-  width: auto;
+  width: 100%;
   height: auto;
   max-width: 100%;
   max-height: min(80vh, 760px);
+  margin-inline: auto;
   background: #050407;
   object-fit: contain;
+}
+
+.result-frame.has-video {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  background: #050407;
+}
+
+.result-frame.has-video::before {
+  display: none;
 }
 
 .empty-art {

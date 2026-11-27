@@ -231,11 +231,25 @@ const baseUrl = import.meta.env.BASE_URL;
       }
 
       function setResultState(state: ResultState): void {
+        const hasVideo = state === "ready";
         emptyResult.classList.toggle("hide", state !== "empty");
         loadingResult.classList.toggle("hide", state !== "loading");
-        resultVideo.classList.toggle("hide", state !== "ready");
-        downloadLink.classList.toggle("show", state === "ready");
+        resultVideo.classList.toggle("hide", !hasVideo);
+        resultFrame.classList.toggle("has-video", hasVideo);
+        downloadLink.classList.toggle("show", hasVideo);
+        // Synchronize hidden state explicitly to avoid stale preview states.
+        emptyResult.hidden = state !== "empty";
+        loadingResult.hidden = state !== "loading";
+        resultVideo.hidden = !hasVideo;
       }
+
+      resultVideo.addEventListener("error", () => {
+        if (!resultVideo.src) return;
+        setStatus("El vídeo no se ha podido cargar o reproducir. Prueba a descargarlo.", "error");
+      });
+      resultVideo.addEventListener("loadedmetadata", () => {
+        resultFrame.classList.add("has-video");
+      });
 
       function clearSelectedImage(): void {
         selectedFile = null;
@@ -439,9 +453,9 @@ const baseUrl = import.meta.env.BASE_URL;
       function openHistoryVideo(url: string): void {
         resultVideo.pause();
         resultVideo.src = url;
+        setResultState("ready");
         resultVideo.load();
         setDownloadUrl(url);
-        setResultState("ready");
       }
 
       function addHistoryItem(url: string): void {
@@ -576,9 +590,9 @@ const baseUrl = import.meta.env.BASE_URL;
           const url = await readSseStream(response.body);
           resultVideo.pause();
           resultVideo.src = url;
+          setResultState("ready");
           resultVideo.load();
           setDownloadUrl(url);
-          setResultState("ready");
           setStatus("Vídeo generado. Ya puedes reproducirlo o descargarlo.", "success");
           addHistoryItem(url);
         } catch (error: unknown) {
