@@ -52,10 +52,10 @@ const baseUrl = import.meta.env.BASE_URL;
           <div>
             <div class="section-heading compact">
               <div class="section-number">02</div>
-              <div><h2>Prompt</h2><p>Máx. 300 caracteres</p></div>
+              <div><h2>Prompt</h2><p>Máx. 500 caracteres</p></div>
             </div>
-            <textarea rows="2" data-prompt class="prompt-field" placeholder="Movimiento breve..."></textarea>
-            <div class="prompt-meta"><span></span><span data-prompt-count>0 / 300</span></div>
+            <textarea rows="2" data-prompt class="prompt-field" placeholder="Movimiento, cámara, expresión..."></textarea>
+            <div class="prompt-meta"><span></span><span data-prompt-count>0 / 500</span></div>
           </div>
 
           <div class="params">
@@ -124,7 +124,7 @@ const baseUrl = import.meta.env.BASE_URL;
       const W = import.meta.env.PUBLIC_WORKER_URL as string | undefined;
       if (!W) throw new Error("PUBLIC_WORKER_URL no definida");
       const MAX = 8 << 20;
-      const PL = 300;
+      const PL = 500;
       const HF = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space";
 
       const q = <T extends Element>(s: string): T => {
