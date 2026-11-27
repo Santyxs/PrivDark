@@ -2,9 +2,13 @@
  * PrivDark API Worker.
  *
  * Receives an image and a motion prompt, submits the job to the public
- * Hugging Face Gradio Space, then streams its SSE response to the browser.
+ * Hugging Face Gradio Space, and forwards its SSE response to the browser.
+ * Gradio error events are normalized so the frontend never displays "null"
+ * when the upstream Space returns an empty error payload.
+ *
  * The optional HF_TOKEN is stored as a Worker secret and is never exposed
- * in the static frontend bundle.
+ * in the static frontend bundle. Generation requests are never retried
+ * automatically, avoiding accidental consumption of additional GPU quota.
  */
 
 export interface Env {
@@ -22,16 +26,35 @@ const MAX_DURATION = 10;
 const DEFAULT_STEPS = 3;
 const MIN_STEPS = 3;
 const MAX_STEPS = 8;
+const MAX_UPSTREAM_DETAIL_LENGTH = 700;
+
 const DEFAULT_NEGATIVE_PROMPT =
   "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, " +
   "最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, " +
   "画得不好的脸部, 畸形的, 毁容的, 形态畸形的肢体, 手指融合, 静止不动的画面, " +
   "杂乱的背景, 三条腿, 背景人很多, 倒着走";
 
+const encoder = new TextEncoder();
+
 interface UserParams {
   prompt?: string;
   steps?: number;
   duration?: number;
+}
+
+interface ParsedSseEvent {
+  event: string;
+  data: string;
+}
+
+class HuggingFaceError extends Error {
+  readonly statusCode: number;
+
+  constructor(message: string, statusCode = 502) {
+    super(message);
+    this.name = "HuggingFaceError";
+    this.statusCode = statusCode;
+  }
 }
 
 export default {
@@ -51,10 +74,13 @@ export default {
       try {
         const response = await handleGenerate(req, env);
         return withCors(response, origin, env);
-      } catch (error) {
+      } catch (error: unknown) {
         const message =
-          error instanceof Error ? error.message : "Error inesperado al generar el vídeo. Inténtalo de nuevo.";
-        return withCors(jsonResponse({ error: message }, 502), origin, env);
+          error instanceof Error
+            ? error.message
+            : "Error inesperado al generar el vídeo. Inténtalo de nuevo.";
+        const status = error instanceof HuggingFaceError ? error.statusCode : 502;
+        return withCors(jsonResponse({ error: message }, status), origin, env);
       }
     }
 
@@ -77,14 +103,17 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
     );
   }
 
-  const imagePart = form.get("image") as unknown;
+  const imagePart = form.get("image");
   const paramsRaw = form.get("params");
 
   if (!(imagePart instanceof File)) {
     return jsonResponse({ error: "Falta la imagen. Sube un archivo PNG, JPG o WEBP." }, 400);
   }
   if (imagePart.size === 0) {
-    return jsonResponse({ error: "El archivo de imagen está vacío (0 bytes). Elige otra imagen." }, 400);
+    return jsonResponse(
+      { error: "El archivo de imagen está vacío (0 bytes). Elige otra imagen." },
+      400,
+    );
   }
   if (imagePart.size > MAX_IMAGE_BYTES) {
     return jsonResponse(
@@ -102,6 +131,7 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
   const parsed = typeof paramsRaw === "string" ? safeJsonParse(paramsRaw) : null;
   const params: UserParams = isRecord(parsed) ? (parsed as UserParams) : {};
   const prompt = typeof params.prompt === "string" ? params.prompt.trim() : "";
+
   if (!prompt) {
     return jsonResponse(
       { error: "Falta el prompt. Describe el movimiento que debe hacer el vídeo." },
@@ -119,6 +149,8 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
 
   const steps = clampInt(params.steps ?? DEFAULT_STEPS, MIN_STEPS, MAX_STEPS);
   const duration = clampFloat(params.duration ?? DEFAULT_DURATION, MIN_DURATION, MAX_DURATION, 1);
+
+  // Deliberately no retry: a second submission may consume more GPU quota.
   const imagePath = await uploadImageToSpace(imagePart, env);
   const eventId = await submitJob(imagePath, imagePart.name, prompt, steps, duration, env);
 
@@ -132,12 +164,26 @@ async function handleGenerate(req: Request, env: Env): Promise<Response> {
 
   if (!upstream.ok || !upstream.body) {
     const detail = await readResponseDetail(upstream);
-    throw new Error(
-      `No se pudo recibir el vídeo desde Hugging Face (código ${upstream.status})${detail}. Prueba otra vez en unos minutos.`,
+    throw new HuggingFaceError(
+      buildHuggingFaceError("recibir el vídeo", detail, upstream.status),
+      clientStatus(upstream.status),
     );
   }
 
-  return new Response(upstream.body, {
+  const contentType = upstream.headers.get("Content-Type") ?? "";
+  if (!contentType.toLowerCase().includes("text/event-stream")) {
+    const detail = await readResponseDetail(upstream);
+    throw new HuggingFaceError(
+      buildHuggingFaceError(
+        "recibir el vídeo",
+        detail || `Hugging Face devolvió un tipo de contenido inesperado (${contentType || "desconocido"}).`,
+        upstream.status,
+      ),
+      502,
+    );
+  }
+
+  return new Response(forwardSseWithReadableErrors(upstream.body), {
     status: 200,
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
@@ -159,17 +205,27 @@ async function uploadImageToSpace(file: File, env: Env): Promise<string> {
 
   if (!response.ok) {
     const detail = await readResponseDetail(response);
-    throw new Error(
-      `No se pudo subir la imagen a Hugging Face (código ${response.status})${detail}. Revisa la conexión o el token HF.`,
+    throw new HuggingFaceError(
+      buildHuggingFaceError("subir la imagen", detail, response.status),
+      clientStatus(response.status),
     );
   }
 
-  const paths: unknown = await response.json();
-  if (!Array.isArray(paths) || typeof paths[0] !== "string" || !paths[0]) {
-    throw new Error(
-      "Hugging Face no devolvió una ruta de imagen válida tras la subida. Vuelve a intentar con otra imagen.",
+  let paths: unknown;
+  try {
+    paths = await response.json();
+  } catch {
+    throw new HuggingFaceError(
+      "Hugging Face recibió la imagen, pero devolvió una respuesta que no es JSON válido.",
     );
   }
+
+  if (!Array.isArray(paths) || typeof paths[0] !== "string" || !paths[0]) {
+    throw new HuggingFaceError(
+      "Hugging Face no devolvió una ruta de imagen válida tras la subida. No se ha iniciado ninguna generación.",
+    );
+  }
+
   return paths[0];
 }
 
@@ -217,18 +273,203 @@ async function submitJob(
 
   if (!response.ok) {
     const detail = await readResponseDetail(response);
-    throw new Error(
-      `Hugging Face rechazó la generación (código ${response.status})${detail}. Puede ser cuota GPU agotada o el Space caído.`,
+    throw new HuggingFaceError(
+      buildHuggingFaceError("iniciar la generación", detail, response.status),
+      clientStatus(response.status),
     );
   }
 
-  const payload: unknown = await response.json();
-  if (!isRecord(payload) || typeof payload.event_id !== "string" || !payload.event_id) {
-    throw new Error(
-      "Hugging Face no devolvió un ID de trabajo. El Space puede estar saturado; espera un momento y reintenta.",
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new HuggingFaceError(
+      "Hugging Face aceptó la petición, pero no devolvió un identificador de generación válido.",
     );
   }
+
+  if (!isRecord(payload) || typeof payload.event_id !== "string" || !payload.event_id) {
+    throw new HuggingFaceError(
+      "Hugging Face no devolvió un ID de trabajo. El Space puede estar ocupado o no disponible. No se ha repetido la petición.",
+    );
+  }
+
   return payload.event_id;
+}
+
+/**
+ * Reads Gradio's SSE stream one event at a time. Normal events are forwarded
+ * unchanged. An `event: error` is rewritten with a useful JSON message so the
+ * existing frontend can display it instead of the literal text `null`.
+ */
+function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = source.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let readerReleased = false;
+
+  const releaseReader = (): void => {
+    if (readerReleased) return;
+    readerReleased = true;
+    try {
+      reader.releaseLock();
+    } catch {
+      // The stream may already have been cancelled by the client.
+    }
+  };
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+
+          if (done) {
+            buffer += decoder.decode();
+            if (buffer.trim()) {
+              const finalEvent = transformSseBlock(buffer);
+              controller.enqueue(encoder.encode(finalEvent));
+            }
+            controller.close();
+            releaseReader();
+            return;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+
+          while (true) {
+            const separator = /\r?\n\r?\n/.exec(buffer);
+            if (!separator || separator.index === undefined) break;
+
+            const block = buffer.slice(0, separator.index);
+            buffer = buffer.slice(separator.index + separator[0].length);
+
+            if (!block.trim()) continue;
+
+            const parsed = parseSseEvent(block);
+            if (parsed.event === "error") {
+              const message = buildHuggingFaceError(
+                "generar el vídeo",
+                extractSseError(parsed.data),
+              );
+              controller.enqueue(encoder.encode(encodeSseError(message)));
+              await reader.cancel().catch(() => undefined);
+              controller.close();
+              releaseReader();
+              return;
+            }
+
+            controller.enqueue(encoder.encode(`${block}\n\n`));
+          }
+
+          // Return after each network chunk so the downstream can consume it.
+          if (buffer.length > 0 || value.byteLength > 0) return;
+        }
+      } catch {
+        const message =
+          "Se interrumpió la conexión con Hugging Face mientras se generaba el vídeo. Comprueba el estado del Space y vuelve a intentarlo cuando esté disponible. No se ha enviado un segundo trabajo automáticamente.";
+        try {
+          controller.enqueue(encoder.encode(encodeSseError(message)));
+          controller.close();
+        } catch {
+          controller.error(new Error(message));
+        }
+        await reader.cancel().catch(() => undefined);
+        releaseReader();
+      }
+    },
+    async cancel(reason) {
+      await reader.cancel(reason).catch(() => undefined);
+      releaseReader();
+    },
+  });
+}
+
+function transformSseBlock(block: string): string {
+  const parsed = parseSseEvent(block);
+  if (parsed.event !== "error") return `${block}\n\n`;
+
+  const message = buildHuggingFaceError("generar el vídeo", extractSseError(parsed.data));
+  return encodeSseError(message);
+}
+
+function parseSseEvent(block: string): ParsedSseEvent {
+  let event = "message";
+  const data: string[] = [];
+
+  for (const line of block.split(/\r?\n/)) {
+    if (line.startsWith("event:")) {
+      event = line.slice(6).trim() || "message";
+    } else if (line.startsWith("data:")) {
+      data.push(line.slice(5).replace(/^ /, ""));
+    }
+  }
+
+  return { event, data: data.join("\n") };
+}
+
+function extractSseError(raw: string): string {
+  const value = raw.trim();
+  if (!value || value === "null" || value === "undefined") return "";
+
+  const parsed = safeJsonParse(value);
+  if (typeof parsed === "string") return truncateDetail(parsed);
+  if (isRecord(parsed)) {
+    for (const key of ["message", "error", "detail", "description", "title"]) {
+      const candidate = parsed[key];
+      if (typeof candidate === "string" && candidate.trim()) {
+        return truncateDetail(candidate);
+      }
+    }
+  }
+
+  return truncateDetail(value);
+}
+
+function encodeSseError(message: string): string {
+  return `event: error\ndata: ${JSON.stringify({ message })}\n\n`;
+}
+
+function buildHuggingFaceError(action: string, detail = "", status?: number): string {
+  const cleanDetail = detail.trim();
+  const suffix = cleanDetail ? ` Detalle de Hugging Face: ${cleanDetail}` : "";
+
+  if (status === 429 || isQuotaError(cleanDetail)) {
+    return (
+      "Hugging Face ha alcanzado el límite de uso de GPU o la cuota temporal de este Space. " +
+      "No se ha repetido la generación para evitar consumir más cuota. Espera a que se restablezca el límite." +
+      suffix
+    );
+  }
+
+  if (status === 401 || status === 403) {
+    return (
+      `Hugging Face no ha autorizado la operación al ${action}. Comprueba que el Space sea público y que HF_TOKEN, si lo utilizas, sea válido.` +
+      suffix
+    );
+  }
+
+  if (cleanDetail) {
+    return `Hugging Face no ha podido ${action}.${suffix}`;
+  }
+
+  return (
+    `Hugging Face ha devuelto un error sin detalles al ${action} (Gradio puede haber enviado data:null). ` +
+    "El Space puede haber fallado durante la ejecución, no tener GPU disponible o haber alcanzado su cuota. " +
+    "No se ha enviado otro trabajo automáticamente. Comprueba el estado y la cuota del Space antes de reintentar."
+  );
+}
+
+function isQuotaError(value: string): boolean {
+  return /(?:quota|daily\s+limit|24\s*(?:h|hours?)|24-hour|rate.?limit|too many requests|zero.?gpu|gpu\s*(?:time|quota|limit)|compute\s*(?:time|quota)|exceeded.{0,40}(?:limit|quota)|limit.{0,40}(?:exceeded|quota|hours?))/i.test(
+    value,
+  );
+}
+
+function clientStatus(upstreamStatus: number): number {
+  if (upstreamStatus === 429) return 429;
+  if (upstreamStatus === 503 || upstreamStatus === 504) return 503;
+  return 502;
 }
 
 function hfHeaders(env: Env, initial?: HeadersInit): Headers {
@@ -275,7 +516,26 @@ function safeFileName(name: string): string {
 async function readResponseDetail(response: Response): Promise<string> {
   const text = await response.text().catch(() => "");
   if (!text) return "";
-  return `: ${text.replace(/\s+/g, " ").slice(0, 500)}`;
+
+  const compact = text.replace(/\s+/g, " ").trim();
+  const parsed = safeJsonParse(compact);
+  if (isRecord(parsed)) {
+    for (const key of ["error", "message", "detail", "reason"]) {
+      const value = parsed[key];
+      if (typeof value === "string" && value.trim()) {
+        return truncateDetail(value);
+      }
+    }
+  }
+
+  return truncateDetail(compact);
+}
+
+function truncateDetail(value: string): string {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > MAX_UPSTREAM_DETAIL_LENGTH
+    ? `${compact.slice(0, MAX_UPSTREAM_DETAIL_LENGTH)}…`
+    : compact;
 }
 
 function clampInt(value: number, minimum: number, maximum: number): number {
