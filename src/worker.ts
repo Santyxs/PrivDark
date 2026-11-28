@@ -3,7 +3,9 @@
 /**
  * PrivDark API Worker.
  * Receives an image and prompt, submits one Gradio job and streams its result.
- * Generation requests are never retried automatically to protect GPU quota.
+ * Generation (job submission) requests are never retried automatically to protect GPU quota.
+ * Read-only and idempotent upstream calls — API discovery, image upload and the result
+ * stream — are retried with exponential backoff so transient 5xx responses do not surface as errors to the client.
  */
 
 export interface Env {
@@ -23,6 +25,10 @@ const DEFAULT_STEPS = 3;
 const MIN_STEPS = 3;
 const MAX_STEPS = 8;
 
+const RETRY_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 800;
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+
 const DEFAULT_NEGATIVE_PROMPT =
   "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, " +
   "最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, " +
@@ -30,6 +36,35 @@ const DEFAULT_NEGATIVE_PROMPT =
   "杂乱的背景, 三条腿, 背景人很多, 倒着走";
 
 const encoder = new TextEncoder();
+
+function sleepWithBackoff(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  input: string | URL | Request,
+  init?: RequestInit,
+  attempts: number = RETRY_ATTEMPTS,
+): Promise<Response> {
+  let lastResponse: Response | null = null;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const response = await fetch(input, init);
+      if (!RETRYABLE_STATUS.has(response.status)) return response;
+      lastResponse = response;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts - 1) {
+      await sleepWithBackoff(RETRY_BASE_DELAY_MS * Math.pow(2, attempt));
+    }
+  }
+
+  if (lastResponse) return lastResponse;
+  throw lastError;
+}
 
 interface ParsedSseEvent {
   readonly event: string;
@@ -157,8 +192,6 @@ async function generateWithDynamicSpace(
     body: JSON.stringify({ data }),
   });
   if (submitResponse.status === 404) {
-    // Older Gradio Spaces (notably Gradio 4.x) expose /run/{api_name} instead of
-    // the newer /gradio_api/call/{api_name} queue API.
     const legacyResponse = await fetch(`${spaceBase}/run/${encodeURIComponent(apiName)}`, {
       method: "POST",
       headers: hfHeaders(env, { "Content-Type": "application/json" }),
@@ -211,14 +244,13 @@ function knownSpaceApiFallback(spaceId: string): Record<string, unknown> {
 
 async function fetchSpaceApiInfo(spaceBase: string, env: Env): Promise<Record<string, unknown>> {
   for (const route of ["/gradio_api/info", "/info"]) {
-    const response = await fetch(`${spaceBase}${route}`, { headers: hfHeaders(env) });
+    const response = await fetchWithRetry(`${spaceBase}${route}`, { headers: hfHeaders(env) });
     if (!response.ok) continue;
     const payload: unknown = await response.json().catch(() => null);
     if (isRecord(payload) && isRecord(payload.named_endpoints)) return payload;
   }
 
-  // Some Spaces expose endpoint descriptions only through OpenAPI.
-  const openApiResponse = await fetch(`${spaceBase}/gradio_api/openapi.json`, { headers: hfHeaders(env) });
+  const openApiResponse = await fetchWithRetry(`${spaceBase}/gradio_api/openapi.json`, { headers: hfHeaders(env) });
   if (openApiResponse.ok) {
     const spec: unknown = await openApiResponse.json().catch(() => null);
     if (isRecord(spec) && isRecord(spec.paths)) {
@@ -246,7 +278,7 @@ async function fetchSpaceApiInfo(spaceBase: string, env: Env): Promise<Record<st
 
   // Gradio 5/6 config can still describe API events even when the legacy info
   // endpoint is absent or has a different schema.
-  const configResponse = await fetch(`${spaceBase}/config`, { headers: hfHeaders(env) });
+  const configResponse = await fetchWithRetry(`${spaceBase}/config`, { headers: hfHeaders(env) });
   if (configResponse.ok) {
     const config: unknown = await configResponse.json().catch(() => null);
     if (isRecord(config) && Array.isArray(config.dependencies) && Array.isArray(config.components)) {
@@ -354,7 +386,6 @@ function createGradioFileData(path: string, name: string, size: number, mimeType
 function spaceUrl(spaceId: string): string {
   const [owner, name] = spaceId.split("/");
   if (!owner || !name) throw new Error("Identificador de Space no válido.");
-  // HF's generated Space hostname normalizes dots, underscores and spaces to hyphens.
   const slug = `${owner}-${name}`.toLowerCase().replace(/[._\s]+/g, "-").replace(/-+/g, "-");
   return `https://${slug}.hf.space`;
 }
@@ -365,7 +396,8 @@ function responseFromLegacyGradioResult(data: unknown[], spaceBase: string): Res
   return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache" } });
 }
 async function streamJobResult(spaceBase: string, functionName: string, eventId: string, env: Env): Promise<Response> {
-  const upstream = await fetch(`${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}/${encodeURIComponent(eventId)}`, {
+  // Safe to retry: reading the result stream of an already-submitted job is idempotent.
+  const upstream = await fetchWithRetry(`${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}/${encodeURIComponent(eventId)}`, {
     headers: hfHeaders(env, { Accept: "text/event-stream" }),
   });
   if (!upstream.ok || !upstream.body) {
@@ -403,7 +435,8 @@ async function uploadImageToSpace(file: File, spaceBase: string, env: Env): Prom
   const form = new FormData();
   form.append("files", file, safeFileName(file.name));
 
-  const response = await fetch(`${spaceBase}/gradio_api/upload`, {
+  // Safe to retry: re-uploading the same file does not start a generation job.
+  const response = await fetchWithRetry(`${spaceBase}/gradio_api/upload`, {
     method: "POST",
     headers: hfHeaders(env),
     body: form,
@@ -471,6 +504,7 @@ async function submitJob(
     true,
   ];
 
+  // Deliberately not retried: a second POST would enqueue another GPU job.
   const response = await fetch(`${spaceBase}/gradio_api/call/${encodeURIComponent(functionName)}`, {
     method: "POST",
     headers: hfHeaders(env, { "Content-Type": "application/json" }),
@@ -514,7 +548,6 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>, spaceB
     try {
       reader.releaseLock();
     } catch {
-      // The stream may already have been cancelled by the client.
     }
   };
 
@@ -571,7 +604,6 @@ function forwardSseWithReadableErrors(source: ReadableStream<Uint8Array>, spaceB
           controller.enqueue(encoder.encode(encodeSseError(message)));
           controller.close();
         } catch {
-          // The client may have cancelled the downstream stream.
         }
         await reader.cancel().catch(() => undefined);
         releaseReader();
