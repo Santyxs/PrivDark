@@ -8,11 +8,12 @@
     "worker:deploy": "wrangler deploy"
   },
   "dependencies": {
-    "astro": "~7.4.13"
+    "astro": "~7.4.13",
+    "plyr": "^3.8.5"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "~5.20261127.1",
     "typescript": "~7.0.2",
-    "wrangler": "~4.168.0",
-    "@cloudflare/workers-types": "~5.20261127.1"
+    "wrangler": "~4.168.0"
   }
 }
