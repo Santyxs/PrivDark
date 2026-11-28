@@ -22,8 +22,8 @@ const DEFAULT_DURATION = 5;
 const MIN_DURATION = 1;
 const MAX_DURATION = 10;
 const DEFAULT_STEPS = 3;
-const MIN_STEPS = 3;
-const MAX_STEPS = 8;
+const MIN_STEPS = 2;
+const MAX_STEPS = 12;
 
 const RETRY_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 800;
