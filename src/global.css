@@ -713,6 +713,11 @@ textarea:focus-visible,
   display: none;
 }
 
+/* Plyr Container Hide */
+.plyr.hide {
+  display: none !important;
+}
+
 .result-video {
   position: relative;
   z-index: 1;
@@ -1065,7 +1070,6 @@ textarea:focus-visible,
   color: #f2edf8;
 }
 
-/* Custom model picker with capability badges */
 .model-picker { position: relative; }
 .model-picker-trigger, .model-option { display: flex; align-items: center; gap: .65rem; width: 100%; color: #f2edf8; background: linear-gradient(145deg, rgb(8 7 13 / 90%), rgb(13 10 18 / 95%)); border: 1px solid var(--line-strong); border-radius: .78rem; font: inherit; font-size: .82rem; padding: .72rem .9rem; text-align: left; cursor: pointer; }
 .model-picker-trigger { min-height: 2.85rem; }
@@ -1078,41 +1082,31 @@ textarea:focus-visible,
 .model-badge { flex: none; border: 1px solid rgb(177 145 210 / 28%); border-radius: 999px; padding: .19rem .43rem; color: #b8a5c9; font-size: .58rem; font-weight: 700; letter-spacing: .06em; }
 .model-badge.audio { color: #e5b6ff; border-color: rgb(205 136 255 / 42%); background: rgb(168 91 230 / 12%); }
 
-/* Large vertical volume control for the main video player. */
-.volume-control {
-  position: absolute;
-  z-index: 4;
-  right: 0.75rem;
-  top: 0.75rem;
-  display: flex;
+/* 
+  =========================================
+  PLYR CUSTOM STYLES (VOLUMEN VERTICAL)
+  =========================================
+*/
+
+.plyr__volume {
+  display: flex !important;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.7rem 0.55rem;
-  border: 1px solid rgb(255 255 255 / 13%);
-  border-radius: 0.9rem;
-  background: rgb(12 9 18 / 82%);
-  backdrop-filter: blur(12px);
+  justify-content: center;
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 80px !important;
+  position: relative;
 }
 
-.volume-control.hide { display: none !important; }
-.volume-icon {
-  color: #c8b3e8;
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-}
-.volume-control input[type="range"] {
-  width: 1.65rem;
-  height: 9.5rem;
-  margin: 0;
-  accent-color: #b98aff;
+.plyr__volume input[type="range"] {
+  position: absolute;
+  width: 70px !important;
+  height: 4px !important;
+  transform: rotate(-90deg);
+  margin: 0 !important;
   cursor: pointer;
-  writing-mode: vertical-lr;
-  direction: rtl;
 }
-@media (max-width: 600px) {
-  .volume-control { right: 0.5rem; top: 0.5rem; padding: 0.55rem 0.4rem; }
-  .volume-control input[type="range"] { height: 7.5rem; }
+
+.plyr--full-ui input[type="range"] {
+  color: var(--brand);
 }
