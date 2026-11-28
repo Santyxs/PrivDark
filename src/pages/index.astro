@@ -1,5 +1,6 @@
 ---
 import "../global.css";
+import "plyr/dist/plyr.css";
 const baseUrl = import.meta.env.BASE_URL;
 ---
 
@@ -153,11 +154,10 @@ const baseUrl = import.meta.env.BASE_URL;
               <div class="loading-orbit" aria-hidden="true"><span></span><span></span><span></span></div>
               <p class="msg" data-loading-message>Generando...</p>
             </div>
-            <video data-result-video controls playsinline class="result-video hide" preload="metadata" aria-label="Vídeo generado"></video>
-            <div class="volume-control hide" data-volume-control aria-label="Control de volumen">
-              <span class="volume-icon" aria-hidden="true">VOL</span>
-              <input data-volume type="range" min="0" max="1" step="0.01" value="1" aria-label="Volumen" />
-            </div>
+            
+            <!-- Aquí está el vídeo. Plyr lo envolverá automáticamente -->
+            <video data-result-video playsinline class="result-video hide" preload="metadata" aria-label="Vídeo generado"></video>
+            
           </div>
 
           <div class="output-foot">
@@ -174,6 +174,8 @@ const baseUrl = import.meta.env.BASE_URL;
     </main>
 
     <script>
+      import Plyr from 'plyr';
+
       type Tone = "info" | "error" | "success";
       type ResultState = "empty" | "loading" | "ready";
 
@@ -251,10 +253,11 @@ const baseUrl = import.meta.env.BASE_URL;
       const resultVideo = q<HTMLVideoElement>("[data-result-video]");
       const resultFrame = q<HTMLElement>(".result-frame");
       const downloadLink = q<HTMLAnchorElement>("[data-download]");
-      const volumeControl = q<HTMLElement>("[data-volume-control]");
-      const volumeSlider = q<HTMLInputElement>("[data-volume]");
-      volumeSlider.addEventListener("input", () => { resultVideo.volume = Number(volumeSlider.value); resultVideo.muted = resultVideo.volume === 0; });
-      resultVideo.addEventListener("volumechange", () => { volumeSlider.value = String(resultVideo.muted ? 0 : resultVideo.volume); });
+
+      // Inicializar Plyr
+      const player = new Plyr(resultVideo, {
+        controls: ['play', 'progress', 'current-time', 'mute', 'volume', 'fullscreen'],
+      });
 
       const historyWrap = q<HTMLElement>("[data-history-wrap]");
       const historyList = q<HTMLUListElement>("[data-history]");
@@ -286,14 +289,18 @@ const baseUrl = import.meta.env.BASE_URL;
         const hasVideo = state === "ready";
         emptyResult.classList.toggle("hide", state !== "empty");
         loadingResult.classList.toggle("hide", state !== "loading");
-        resultVideo.classList.toggle("hide", !hasVideo);
-        volumeControl.classList.toggle("hide", !hasVideo);
+        
+        // En lugar de ocultar el vídeo nativo, ocultamos el contenedor de Plyr
+        const plyrContainer = document.querySelector('.plyr');
+        if (plyrContainer) {
+          plyrContainer.classList.toggle("hide", !hasVideo);
+        }
+        
         resultFrame.classList.toggle("has-video", hasVideo);
         downloadLink.classList.toggle("show", hasVideo);
-        // Synchronize hidden state explicitly to avoid stale preview states.
+        
         emptyResult.hidden = state !== "empty";
         loadingResult.hidden = state !== "loading";
-        resultVideo.hidden = !hasVideo;
       }
 
       resultVideo.addEventListener("error", () => {
@@ -495,16 +502,17 @@ const baseUrl = import.meta.env.BASE_URL;
             error instanceof Error ? error.message : "No se pudo descargar el vídeo. Prueba a abrir el enlace directamente.",
             "error",
           );
-          // Fallback navigates in the current tab, never creates a blank popup.
           window.location.assign(url);
         }
       });
 
       function openHistoryVideo(url: string): void {
-        resultVideo.pause();
-        resultVideo.src = url;
+        player.pause();
+        player.source = {
+          type: 'video',
+          sources: [{ src: url, provider: 'html5' }]
+        };
         setResultState("ready");
-        resultVideo.load();
         setDownloadUrl(url);
       }
 
@@ -523,7 +531,7 @@ const baseUrl = import.meta.env.BASE_URL;
         video.playsInline = true;
         video.preload = "auto";
         item.append(video);
-        // Preview plays once; visibility changes only pause/resume, never restart an ended clip.
+        
         const playPreview = () => {
           if (!video.ended && video.paused) void video.play().catch(() => undefined);
         };
@@ -560,7 +568,6 @@ const baseUrl = import.meta.env.BASE_URL;
       fileInput.addEventListener("change", () => {
         const file = fileInput.files?.[0];
         if (file) selectImage(file);
-        // Allows selecting the same file again after a validation error or replacement.
         fileInput.value = "";
       });
 
@@ -608,11 +615,8 @@ const baseUrl = import.meta.env.BASE_URL;
         spinner.classList.add("show");
         buttonLabel.textContent = "Generando...";
         updateGenerateButton();
-        resultVideo.pause();
-        resultVideo.removeAttribute("src");
-        resultVideo.load();
-        currentDownloadUrl = null;
-        downloadLink.href = "#";
+        
+        player.pause();
         setResultState("loading");
         setStatus("Enviando imagen y parámetros al Worker...");
 
@@ -642,10 +646,14 @@ const baseUrl = import.meta.env.BASE_URL;
           if (!response.ok || !response.body) throw new Error(await getResponseError(response));
 
           const url = await readSseStream(response.body);
-          resultVideo.pause();
-          resultVideo.src = url;
+          
+          // Usar Plyr para cargar la nueva fuente
+          player.source = {
+            type: 'video',
+            sources: [{ src: url, provider: 'html5' }]
+          };
+          
           setResultState("ready");
-          resultVideo.load();
           setDownloadUrl(url);
           setStatus("Vídeo generado. Ya puedes reproducirlo o descargarlo.", "success");
           addHistoryItem(url);
@@ -663,7 +671,6 @@ const baseUrl = import.meta.env.BASE_URL;
       });
 
       window.addEventListener("pagehide", (event) => {
-        // Keep the preview alive if the browser stores this page in the back-forward cache.
         if (!event.persisted && previewUrl) URL.revokeObjectURL(previewUrl);
       }, { once: true });
 
